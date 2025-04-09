@@ -1,41 +1,66 @@
 {
   "expo": {
-    "name": "MoodMatch",
-    "slug": "MoodMatch",
+    "name": "MoodMatch", // Or your app's name
+    "slug": "MoodMatch", // Or your app's slug
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
-    "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "icon": "./assets/icon.png", // Make sure you have an icon file
+    "userInterfaceStyle": "light",
+    "scheme": "moodmatch", // Add a scheme for potential deep linking
+    "splash": {
+      "image": "./assets/splash.png", // Make sure you have a splash screen file
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.moodmatch", // Replace with your bundle ID
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera to take photos for analysis.",
+        "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos to select images for analysis.",
+        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone (required by camera picker on iOS)." // Often required even if not recording audio
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/adaptive-icon.png", // Make sure you have an adaptive icon file
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.yourcompany.moodmatch", // Replace with your package name
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE" // Included for broad compatibility, may not be strictly needed by expo-image-picker itself on newer Android
+      ]
     },
     "web": {
-      "bundler": "metro",
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png" // Make sure you have a favicon
+      // "bundler": "metro" // Default
     },
     "plugins": [
-      "expo-router",
+      "expo-router", // Keep your existing plugins
       [
-        "expo-splash-screen",
+        "expo-image-picker", // Add the image picker plugin config
         {
-          "image": "./assets/images/splash-icon.png",
-          "imageWidth": 200,
-          "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          // Optional: You can remove these explicit messages here if the ones
+          // in ios.infoPlist and the default Android ones are sufficient.
+          // But keeping them explicitly ties them to the plugin.
+          "photosPermission": "Allow $(PRODUCT_NAME) to access your photos so you can select images for analysis.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera so you can take photos for analysis."
+          // "microphonePermission": false // You can set this to false if truly not needed, but camera often bundles it.
         }
       ]
+      // Add other plugins like expo-secure-store if you use them
     ],
-    "experiments": {
-      "typedRoutes": true
-    }
+    "extra": {
+      // Example: For EAS Update configuration
+      // "eas": {
+      //   "projectId": "YOUR_EAS_PROJECT_ID"
+      // }
+    },
+    "owner": "your_expo_username" // Replace with your Expo username if using EAS
   }
 }
