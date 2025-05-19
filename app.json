@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png", // Make sure you have an icon file
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "scheme": "moodmatch", // Add a scheme for potential deep linking
     "splash": {
       "image": "./assets/splash.png", // Make sure you have a splash screen file

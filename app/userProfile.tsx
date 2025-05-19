@@ -1,4 +1,4 @@
-// app/(tabs)/userProfile.tsx (Modified - Moved into tabs, header handled by layout)
+// File: app/userProfile.tsx (Standalone screen outside tabs)
 
 import React, { useState, useEffect } from 'react';
 import {
@@ -6,11 +6,11 @@ import {
   Image, ActivityIndicator
 } from 'react-native';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-// --- ADJUST PATHS: Now relative to app/(tabs)/ ---
-import { auth, db } from '../../firebaseConfig';
-import { useLocalSearchParams, useRouter, useNavigation } from 'expo-router'; // Removed Stack import
+// --- ADJUST PATHS: Now relative to app/ ---
+import { auth, db } from '../firebaseConfig'; // Use '../' if firebaseConfig is in root
+import { useLocalSearchParams, useRouter, useNavigation, Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { themeColors } from '../../styles/theme';
+import { themeColors } from '../styles/theme'; // Use '../' if styles is in root
 // --- END ADJUST PATHS ---
 import { Ionicons } from '@expo/vector-icons';
 import { User as FirebaseAuthUser } from 'firebase/auth';
@@ -25,9 +25,9 @@ interface UserProfile {
 
 export default function UserProfileScreen() {
   const router = useRouter();
-  const navigation = useNavigation(); // Still needed for setting title dynamically
-  const params = useLocalSearchParams<{ userId: string }>();
-  const profileUserId = params.userId;
+  const navigation = useNavigation();
+  const params = useLocalSearchParams<{ userId: string }>(); // Expecting userId
+  const profileUserId = params.userId; // The ID of the profile being viewed
 
   const [currentUser, setCurrentUser] = useState<FirebaseAuthUser | null>(auth.currentUser);
   const [profileData, setProfileData] = useState<UserProfile | null>(null);
@@ -35,7 +35,7 @@ export default function UserProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [chatLoading, setChatLoading] = useState(false);
 
-  // Effect to update currentUser state if auth state changes (Unchanged)
+  // Effect to update currentUser state if auth state changes
   useEffect(() => {
     const unsubscribeAuth = auth.onAuthStateChanged(user => {
       setCurrentUser(user);
@@ -43,11 +43,12 @@ export default function UserProfileScreen() {
     return unsubscribeAuth;
   }, []);
 
-  // Effect to fetch profile data and set header title (Unchanged logic, removed Stack.Screen)
+  // Effect to fetch profile data based *only* on the userId parameter and set title
   useEffect(() => {
     if (!profileUserId) {
       setError("User ID not provided.");
       setIsLoading(false);
+      navigation.setOptions({ title: 'Error' }); // Set title on error
       return;
     }
 
@@ -59,9 +60,10 @@ export default function UserProfileScreen() {
       if (docSnap.exists()) {
         const data = docSnap.data() as UserProfile;
         setProfileData(data);
-        // Set header title dynamically using navigation hook
+        // Set header title dynamically after fetching data
         navigation.setOptions({ title: data.username || data.displayName || 'User Profile' });
       } else {
+        console.log("UserProfileScreen: User document not found for uid:", profileUserId);
         setProfileData(null);
         setError("User profile not found.");
         navigation.setOptions({ title: 'Not Found' }); // Update title on error too
@@ -75,11 +77,10 @@ export default function UserProfileScreen() {
       setIsLoading(false);
     });
 
-  }, [profileUserId, navigation]); // Keep dependencies
+  }, [profileUserId, navigation]); // Rerun only if profileUserId changes
 
-  // --- Start Chat Handler (Unchanged) ---
+  // --- Start Chat Handler (Ensure chatRoom path is correct) ---
   const handleStartChat = async () => {
-    // ... (keep the exact same chat starting logic as before) ...
     if (!currentUser || !profileUserId || chatLoading) {
       if (!currentUser) Alert.alert("Login Required", "Please log in to start a chat.");
       console.warn("Start Chat conditions not met:", { currentUser: !!currentUser, profileUserId, chatLoading });
@@ -101,9 +102,9 @@ export default function UserProfileScreen() {
       if (!chatDocSnap.exists()) {
         console.log("Creating new chat document with ID:", chatId);
         const currentUserDoc = await getDoc(doc(db, 'users', currentUserId));
-        const otherUserDoc = await getDoc(doc(db, 'users', otherUserId));
+        const otherUserDoc = await getDoc(doc(db, 'users', otherUserId)); // Fetch other user again or use profileData
         const currentUserData = currentUserDoc.data();
-        const otherUserData = profileData;
+        const otherUserData = profileData; // Use already fetched data
 
         await setDoc(chatDocRef, {
           users: [currentUserId, otherUserId],
@@ -126,8 +127,8 @@ export default function UserProfileScreen() {
       }
 
       console.log("Navigating to chatRoom with chatId:", finalChatId);
-       // IMPORTANT: Ensure chatRoom screen path is correct (likely outside tabs now)
-       router.push({ pathname: '/chatRoom', params: { chatId: finalChatId } });
+      // Navigate to chatRoom - ensure this screen exists at app/chatRoom.tsx
+      router.push({ pathname: '/chatRoom', params: { chatId: finalChatId } });
 
     } catch (error) {
       console.error("Error starting chat: ", error);
@@ -138,35 +139,75 @@ export default function UserProfileScreen() {
   };
   // --- End Start Chat Handler ---
 
-  // --- Render Logic (Unchanged) ---
+  // --- Render Logic ---
   const renderContent = () => {
-    // ... (keep the exact same render logic as before) ...
-    if (isLoading) { return <ActivityIndicator size="large" color={themeColors.pink} style={{ marginTop: 50 }} />; }
-    if (error) { return <Text style={styles.errorText}>{error}</Text>; }
-    if (!profileData) { return <Text style={styles.infoText}>User profile not available.</Text>; }
+    if (isLoading) {
+      return <ActivityIndicator size="large" color={themeColors.pink} style={{ marginTop: 50 }} />;
+    }
 
+    if (error) {
+      // Display error message, maybe add a retry button?
+      return <Text style={styles.errorText}>{error}</Text>;
+    }
+
+    if (!profileData) {
+      // Should be covered by error state if doc doesn't exist after loading
+      return <Text style={styles.infoText}>User profile not available.</Text>;
+    }
+
+    // --- Display Profile Data ---
     const displayData = profileData;
+
     return (
       <>
+        {/* Profile Picture */}
         <View style={styles.profilePicContainer}>
-          {displayData.photoURL ? (<Image source={{ uri: displayData.photoURL }} style={styles.profilePic} />)
-           : (<View style={[styles.profilePic, styles.profilePicPlaceholder]}><Ionicons name="person" size={60} color={themeColors.textSecondary} /></View>)}
+          {displayData.photoURL ? (
+            <Image source={{ uri: displayData.photoURL }} style={styles.profilePic} />
+          ) : (
+            <View style={[styles.profilePic, styles.profilePicPlaceholder]}>
+              <Ionicons name="person" size={60} color={themeColors.textSecondary} />
+            </View>
+          )}
         </View>
-        <Text style={styles.displayName}>{displayData.displayName || 'User'}</Text>
-        <Text style={styles.username}>@{displayData.username || 'username'}</Text>
+
+        {/* Display Name */}
+        <Text style={styles.displayName}>
+          {displayData.displayName || 'User'}
+        </Text>
+
+        {/* Username */}
+        <Text style={styles.username}>
+          @{displayData.username || 'username'}
+        </Text>
+
+        {/* Optional: Display public email if available */}
         {displayData.email && (
-          <View style={styles.userInfo}><Text style={styles.emailText}>Email:</Text><Text style={styles.emailValue} selectable={true}>{displayData.email}</Text></View>
+          <View style={styles.userInfo}>
+            <Text style={styles.emailText}>Email:</Text>
+            <Text style={styles.emailValue} selectable={true}>{displayData.email}</Text>
+          </View>
         )}
+
+        {/* --- Start Chat Button --- */}
+        {/* Shown if viewing someone else (which is always true for this screen) */}
+        {/* Added check for currentUser just in case */}
         {profileUserId !== currentUser?.uid ? (
           <TouchableOpacity
             style={[styles.chatButton, chatLoading && styles.buttonDisabled]}
             onPress={handleStartChat}
             disabled={chatLoading || !currentUser}
           >
-            {chatLoading ? (<ActivityIndicator color="#fff" size="small" />)
-             : (<><Ionicons name="chatbubbles-outline" size={18} color={themeColors.textLight} style={{ marginRight: 8 }} /><Text style={styles.buttonText}>Start Chat</Text></>)}
+            {chatLoading ? (
+              <ActivityIndicator color="#fff" size="small" />
+            ) : (
+              <>
+                <Ionicons name="chatbubbles-outline" size={18} color={themeColors.textLight} style={{ marginRight: 8 }} />
+                <Text style={styles.buttonText}>Start Chat</Text>
+              </>
+            )}
           </TouchableOpacity>
-        ) : (<Text style={styles.infoText}>Viewing your own profile via direct link?</Text>)}
+        ) : null /* Should ideally not happen, but hide button if viewing self */}
       </>
     );
   };
@@ -177,10 +218,19 @@ export default function UserProfileScreen() {
       colors={themeColors.backgroundGradient}
       style={styles.gradientWrapper}
     >
-      {/* --- REMOVED Stack.Screen wrapper --- */}
+      {/* Configure the header using Stack.Screen options */}
+      <Stack.Screen
+        options={{
+          headerShown: true, // Explicitly show header for this screen
+          // Title is set dynamically in useEffect
+          headerStyle: { backgroundColor: themeColors.darkGrey },
+          headerTintColor: themeColors.textLight, // Affects back arrow and title if not overridden
+          headerTitleStyle: { color: themeColors.textLight },
+          // Default back button provided by Stack navigator should appear
+        }}
+      />
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
-          {/* Title is handled by header options in layout */}
           {renderContent()}
         </View>
       </SafeAreaView>
@@ -188,12 +238,12 @@ export default function UserProfileScreen() {
   );
 }
 
-// --- Styles (Ensure paths are correct for themeColors etc. if copied) ---
+// --- Styles ---
 const styles = StyleSheet.create({
-  // ... (keep the exact same styles as before) ...
   gradientWrapper: { flex: 1 },
   safeArea: { flex: 1 },
-  container: { flex: 1, alignItems: 'center', paddingTop: 40, paddingHorizontal: 20 }, // Adjust paddingTop if header overlaps
+  // Adjust paddingTop if needed to account for the header height
+  container: { flex: 1, alignItems: 'center', paddingTop: 20, paddingHorizontal: 20 },
   profilePicContainer: { width: 120, height: 120, borderRadius: 60, marginBottom: 20, borderWidth: 3, borderColor: themeColors.pink, backgroundColor: themeColors.darkGrey, overflow: 'hidden' },
   profilePic: { width: '100%', height: '100%' },
   profilePicPlaceholder: { justifyContent: 'center', alignItems: 'center' },

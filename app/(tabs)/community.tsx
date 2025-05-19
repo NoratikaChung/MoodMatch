@@ -89,7 +89,7 @@ export default function CommunityScreen() {
   const navigateToProfile = (userId: string) => {
     // Navigate to the profile screen, passing the userId
     // Use the correct path for your profile screen within the tabs structure
-    router.push({ pathname: '/(tabs)/userProfile', params: { userId: userId } });
+    router.push({ pathname: '/userProfile', params: { userId: userId } });
   };
 
   return (
