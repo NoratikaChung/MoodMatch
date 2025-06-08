@@ -99,7 +99,7 @@ export default function CommunityScreen() {
     >
       <SafeAreaView style={styles.safeArea}>
         <View style={styles.container}>
-          <Text style={styles.title}>Find Users</Text>
+          <Text style={styles.title}>Creative Community</Text>
 
           {/* Search Input */}
           <TextInput
