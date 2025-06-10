@@ -1,7 +1,7 @@
-// app/_layout.tsx (Corrected for userProfile being part of Tabs)
+// app/_layout.tsx (Explicitly defining stack screens)
 
-import React, { useState, useEffect, ComponentType } from 'react';
-import { ActivityIndicator, View, StyleSheet, StatusBar, ViewProps } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { ActivityIndicator, View, StyleSheet, StatusBar } from 'react-native';
 import { useRouter, useSegments, Stack } from 'expo-router';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
@@ -17,61 +17,53 @@ export default function RootLayoutNav() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      // console.log('(RootLayout Auth) State Changed -> User:', currentUser ? currentUser.uid : 'null');
       setUser(currentUser);
       setAuthLoading(false);
     });
-    return () => {
-      // console.log("(RootLayout Auth) Unsubscribing");
-      unsubscribe();
-    };
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
     if (authLoading || segments.length === 0) {
-      // console.log(`(RootLayout Nav) Waiting: authLoading=${authLoading}, segments=${segments.length}`);
+      console.log(`(RootLayout Nav) WAITING: authLoading=${authLoading}, segments.length=${segments.length}`);
       return;
     }
 
     const currentPath = segments.join('/');
-    // console.log(`(RootLayout Nav) Ready. User: ${!!user}, Path: ${currentPath}`);
+    console.log(`(RootLayout Nav) PROCESSING: User Authed: ${!!user}, Current Path: "${currentPath}"`);
 
-    // Screens a logged-out user is allowed to be on
-    const isUserOnAuthScreen = currentPath.startsWith('login') || currentPath.startsWith('signup');
+    if (currentPath.startsWith('+html')) { console.log("(RootLayout Nav) Ignoring +html path."); return; }
+    if (currentPath.startsWith('+not-found')) { console.log("(RootLayout Nav) Current path is +not-found. No redirect."); return; }
+    if (currentPath === '(root)' || currentPath === '') { console.log("(RootLayout Nav) Current path is initial. No redirect."); return; }
 
-    // Screens a logged-in user is allowed to be on (includes all tab screens and specific standalone screens)
-    const isUserOnTabsScreen = currentPath.startsWith('(tabs)'); // This will cover (tabs)/userProfile
-    const isUserOnAllowedStandaloneScreen = currentPath.startsWith('profile-edit'); // Add other standalone screens here if any
+    const publicRoutes = ['login', 'signup'];
+    const authenticatedRootPathsOrGroups = ['(tabs)', 'post', 'profile-edit', 'chatRoom'];
 
-    const timerId = setTimeout(() => {
-      const currentUserState = auth.currentUser;
-      // console.log(`(RootLayout Nav - Delayed) Checking: User=${!!currentUserState}, Path: ${currentPath}, OnAuth=${isUserOnAuthScreen}, OnTabs=${isUserOnTabsScreen}, OnAllowedStandalone=${isUserOnAllowedStandaloneScreen}`);
+    const isCurrentRoutePublic = publicRoutes.some(route => currentPath.startsWith(route));
+    const isCurrentRouteAuthenticatedArea = authenticatedRootPathsOrGroups.some(group => currentPath.startsWith(group));
 
-      if (currentUserState) {
-        // User is logged in
-        if (isUserOnTabsScreen || isUserOnAllowedStandaloneScreen) {
-          // Already on a valid screen for logged-in users (tabs or allowed standalone)
-          // console.log("(RootLayout Nav - Delayed) User logged in, on valid screen. No redirect.");
-          return;
-        } else {
-          // Logged in, but not on a tab screen or allowed standalone (e.g., was on login/signup)
-          // console.log("(RootLayout Nav - Delayed) User logged in, NOT on tabs/allowed. Redirecting to /(tabs)/camera");
-          router.replace('/(tabs)/camera');
-        }
+    console.log(`(RootLayout Nav) Path Checks: CurrentPath="${currentPath}", isPublic=${isCurrentRoutePublic}, isAuthArea=${isCurrentRouteAuthenticatedArea}`);
+
+    const currentUserState = auth.currentUser;
+
+    if (currentUserState) { // User is LOGGED IN
+      if (isCurrentRoutePublic) {
+        console.log(`(RootLayout Nav) User LOGGED IN, but on AUTH screen "${currentPath}". Redirecting to /(tabs)/camera.`);
+        router.replace('/(tabs)/camera');
+      } else if (!isCurrentRouteAuthenticatedArea) {
+        console.warn(`(RootLayout Nav) User LOGGED IN, on UNKNOWN route "${currentPath}". Redirecting to /(tabs)/camera.`);
+        router.replace('/(tabs)/camera');
       } else {
-        // User is NOT logged in
-        if (!isUserOnAuthScreen) {
-          // Not logged in and not on an auth screen
-          // console.log("(RootLayout Nav - Delayed) User logged out, NOT on auth. Redirecting to /login");
-          router.replace('/login');
-        } else {
-          // Not logged in, but already on an auth screen. No redirect needed.
-          // console.log("(RootLayout Nav - Delayed) User logged out, on auth screen. No redirect.");
-        }
+        console.log(`(RootLayout Nav) User LOGGED IN, on VALID route "${currentPath}". No redirect.`);
       }
-    }, 50); // Small delay for route stability
-
-    return () => clearTimeout(timerId);
+    } else { // User is NOT LOGGED IN
+      if (!isCurrentRoutePublic) {
+        console.warn(`(RootLayout Nav) User NOT LOGGED IN and currentPath "${currentPath}" is NOT auth screen. Redirecting to /login.`);
+        router.replace('/login');
+      } else {
+        console.log(`(RootLayout Nav) User NOT LOGGED IN, on AUTH screen. No redirect.`);
+      }
+    }
   }, [user, authLoading, segments, router]);
 
 
@@ -90,28 +82,17 @@ export default function RootLayoutNav() {
           <Stack
              screenOptions={{
                 headerShown: false,
-                cardStyle: { backgroundColor: 'transparent' }, // For background gradient
-                contentStyle: { backgroundColor: 'transparent' },// For background gradient
+                contentStyle: { backgroundColor: 'transparent' },
              }}
           >
-              {/* (tabs) group will handle all screens inside app/(tabs), including userProfile */}
-              <Stack.Screen name="(tabs)" />
-              <Stack.Screen name="login" />
-              <Stack.Screen name="signup" />
-              <Stack.Screen name="profile-edit" />
-              {/*
-                Ensure 'chatRoom' is either defined in app/(tabs)/_layout.tsx (if tabs should be visible)
-                OR if it's a standalone screen like login/signup, its file should be app/chatRoom.tsx
-                and then it can be listed here or discovered by Expo Router automatically.
-                For now, assuming it might be a standalone screen like profile-edit.
-              */}
-              <Stack.Screen name="chatRoom" />
-
-              {/*
-                DO NOT list 'userProfile' here if it's defined and handled
-                within app/(tabs)/_layout.tsx (which it is, for Option A).
-                The '(tabs)' screen group definition above covers it.
-              */}
+            <Stack.Screen name="(tabs)" /> {/* Represents the app/(tabs)/ directory and its _layout.tsx */}
+            <Stack.Screen name="login" />   {/* Represents app/login.tsx */}
+            <Stack.Screen name="signup" />  {/* Represents app/signup.tsx */}
+            <Stack.Screen name="profile-edit" /> {/* Represents app/profile-edit.tsx */}
+            <Stack.Screen name="post" />         {/* Represents the app/post/ directory (for dynamic routes like [id].tsx within it) */}
+            <Stack.Screen name="chatRoom" />     {/* Represents app/chatRoom.tsx */}
+            {/* userProfile.tsx is inside app/(tabs)/ so it's handled by the (tabs) group definition above. */}
+            {/* +not-found.tsx is handled automatically by Expo Router. */}
           </Stack>
         )}
       </LinearGradient>

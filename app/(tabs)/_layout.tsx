@@ -1,23 +1,20 @@
-// File: app/(tabs)/_layout.tsx (Removing image and caption screen definitions)
+// File: app/(tabs)/_layout.tsx (Tabs Reordered: Camera, Community, Chat, Profile)
 
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { TouchableOpacity, Pressable, View, StyleSheet } from 'react-native'; // Keep Pressable, View, StyleSheet
+import { TouchableOpacity, Pressable, View, StyleSheet } from 'react-native';
 import { themeColors } from '../../styles/theme';
 
-// Keep CustomFlexTabButton if you want to ensure flex distribution
-// or remove it if the default distribution works once image/caption are gone.
-// For now, let's keep it to be sure about the 4 visible items.
 const CustomFlexTabButton = (props: any) => {
   const { accessibilityState, children, onPress, onLongPress, style } = props;
-  const focused = accessibilityState.selected;
+  const focused = accessibilityState?.selected;
   return (
     <Pressable
       onPress={onPress}
       onLongPress={onLongPress}
       style={({ pressed }) => [
-        styles.customTabButtonContainer,
+        stylesInternalTabs.customTabButtonContainer, // Use renamed style object
         { opacity: pressed ? 0.7 : 1 },
         style
       ]}
@@ -29,7 +26,8 @@ const CustomFlexTabButton = (props: any) => {
   );
 };
 
-const styles = StyleSheet.create({
+// Renamed to avoid conflict if this file itself is imported elsewhere or for clarity
+const stylesInternalTabs = StyleSheet.create({
   customTabButtonContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -37,8 +35,8 @@ const styles = StyleSheet.create({
   },
 });
 
-
 export default function TabLayout() {
+  console.log("--- TabLayout in (tabs) RENDERING with Reordered Tabs ---");
   return (
     <Tabs
       screenOptions={{
@@ -61,7 +59,8 @@ export default function TabLayout() {
         tabBarIconStyle: { marginTop: 3 },
       }}>
 
-      {/* === Your 4 Visible Tab Screens === */}
+      {/* === REORDERED Visible Tab Screens === */}
+      {/* 1. Camera Tab */}
       <Tabs.Screen
         name="camera"
         options={{
@@ -70,6 +69,7 @@ export default function TabLayout() {
           tabBarButton: (props) => <CustomFlexTabButton {...props} />,
         }}
       />
+      {/* 2. Community Tab */}
       <Tabs.Screen
         name="community"
         options={{
@@ -78,14 +78,16 @@ export default function TabLayout() {
           tabBarButton: (props) => <CustomFlexTabButton {...props} />,
         }}
       />
+      {/* 3. Chat Tab */}
       <Tabs.Screen
-        name="chat"
+        name="chat" // Corresponds to app/(tabs)/chat.tsx (your ChatListScreen)
         options={{
           title: 'Chat',
           tabBarIcon: ({ color, size, focused }) => (<Ionicons name={focused ? "chatbubbles" : "chatbubbles-outline"} size={size} color={color} />),
           tabBarButton: (props) => <CustomFlexTabButton {...props} />,
         }}
       />
+      {/* 4. Profile Tab */}
       <Tabs.Screen
         name="profile"
         options={{
@@ -94,18 +96,12 @@ export default function TabLayout() {
           tabBarButton: (props) => <CustomFlexTabButton {...props} />,
         }}
       />
-      {/* === END Visible Tab Screens === */}
+      {/* === END Reordered Visible Tab Screens === */}
 
 
-      {/* === REMOVED image AND caption Tabs.Screen DEFINITIONS === */}
-      {/* <Tabs.Screen name="image" options={{ tabBarButton: () => null }} /> */}
-      {/* <Tabs.Screen name="caption" options={{ tabBarButton: () => null }} /> */}
-      {/* === END REMOVAL === */}
-
-
-      {/* --- Hidden Screen for User Profile View (Still relevant if pushed within tabs) --- */}
+      {/* --- Hidden Screen for User Profile View (Keep this definition) --- */}
       <Tabs.Screen
-        name="userProfile" // Assumes app/(tabs)/userProfile.tsx still exists for this purpose
+        name="userProfile" // Assumes app/(tabs)/userProfile.tsx still exists
         options={
           ({ navigation }) => ({
             headerShown: true,
@@ -118,7 +114,7 @@ export default function TabLayout() {
                 <Ionicons name="chevron-back" size={28} color={themeColors.textLight} />
               </TouchableOpacity>
             ),
-            tabBarButton: () => null, // Ensure this remains completely hidden from the bar
+            tabBarButton: () => null,
           })
         }
       />

@@ -1,251 +1,293 @@
-// app/(tabs)/community.tsx
+// app/(tabs)/community.tsx (Refined Conditional Rendering for Posts Grid)
+
 import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  TextInput,
-  // Button, // Using TouchableOpacity for better styling consistency
-  FlatList,
-  StyleSheet,
-  TouchableOpacity,
-  ActivityIndicator,
-  SafeAreaView, // Import SafeAreaView
+  View, Text, FlatList, StyleSheet, TouchableOpacity,
+  ActivityIndicator, SafeAreaView, Dimensions, Image,
+  Platform, StatusBar, Alert, TextInput
 } from 'react-native';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
-import { useRouter } from 'expo-router'; // Use for navigation
-// --- Fix: Import 'db' instead of 'FIREBASE_DB' ---
-import { db, auth } from '../../firebaseConfig'; // Make sure auth is also exported if needed for excluding self later
-// --- End Fix ---
-import { LinearGradient } from 'expo-linear-gradient'; // Import LinearGradient
-import { themeColors } from '../../styles/theme';     // Import themeColors
-import { Ionicons } from '@expo/vector-icons';       // Import Ionicons (optional, but good practice)
+import { collection, query, where, getDocs, limit, onSnapshot, orderBy } from 'firebase/firestore';
+import { useRouter } from 'expo-router';
+import { db, auth } from '../../firebaseConfig';
+import { LinearGradient } from 'expo-linear-gradient';
+import { themeColors } from '../../styles/theme';
+import { Ionicons } from '@expo/vector-icons';
 
-
-interface User {
-  id: string; // Document ID (uid)
+// Post interface (ensure consistency with other files like PostCard.tsx)
+interface Post {
+  id: string;
+  userId: string;
   username: string;
-  displayName?: string; // Optional: Add fields you might fetch/display
-  photoURL?: string;    // Optional
+  userProfileImageUrl: string | null;
+  imageUrl: string;
+  imageWidth?: number;
+  imageHeight?: number;
+  caption: string | null;
+  song: {
+    id: string;
+    name: string;
+    artists: string[];
+    albumImageUrl: string | null;
+    previewUrl: string | null;
+  } | null;
+  createdAt: any; // Firestore Timestamp
+  likesCount?: number;
+  likedBy?: string[];
+  commentsCount?: number;
+  overallModerationStatus?: 'approved' | 'pending' | 'rejected';
 }
 
+// User interface for search results
+interface UserSearchResult {
+  id: string;
+  username: string;
+  displayName?: string;
+  photoURL?: string;
+}
+
+const NUM_COLUMNS = 3;
+const screenWidth = Dimensions.get('window').width;
+const spacing = 2; // Spacing between items AND on the sides of the grid
+const totalHorizontalSpacing = spacing * (NUM_COLUMNS + 1);
+const itemSize = (screenWidth - totalHorizontalSpacing) / NUM_COLUMNS;
+
+
 export default function CommunityScreen() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [searched, setSearched] = useState(false);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [isLoadingPosts, setIsLoadingPosts] = useState(true);
+  const [error, setError] = useState<string | null>(null); // For post fetching errors
   const router = useRouter();
-  const currentUser = auth.currentUser; // Get current user if needed later
 
-  const handleSearch = async () => {
-    const trimmedQuery = searchQuery.trim();
-    if (trimmedQuery === '') {
-      setSearchResults([]);
-      setSearched(false);
-      return;
-    }
-    setIsLoading(true);
-    setSearched(true);
-    setSearchResults([]);
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
+  const [isLoadingSearch, setIsLoadingSearch] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
 
-    try {
-      // --- Fix: Use 'db' variable ---
-      const usersRef = collection(db, 'users');
-      // --- End Fix ---
-
-      // Ensure username search query is lowercase if usernames are stored lowercase
-      const lowerCaseQuery = trimmedQuery.toLowerCase();
-
-      const q = query(
-        usersRef,
-        where('username', '>=', lowerCaseQuery), // Assuming usernames are stored lowercase for case-insensitive prefix search
-        where('username', '<=', lowerCaseQuery + '\uf8ff'),
-        limit(10)
-      );
-
-      const querySnapshot = await getDocs(q);
-      const users: User[] = [];
+  // Fetch Community Posts
+  useEffect(() => {
+    setIsLoadingPosts(true);
+    setError(null);
+    const postsQuery = query(
+      collection(db, "posts"),
+      // where("overallModerationStatus", "==", "approved"), // UNCOMMENT once moderation is active & index created
+      orderBy("createdAt", "desc")
+    );
+    const unsubscribe = onSnapshot(postsQuery, (querySnapshot) => {
+      const fetchedPosts: Post[] = [];
       querySnapshot.forEach((doc) => {
-        // Optional: Exclude self from search results
-        // if (doc.id !== currentUser?.uid) {
-        // Ensure data matches User interface
+        fetchedPosts.push({ id: doc.id, ...doc.data() } as Post);
+      });
+      setPosts(fetchedPosts);
+      setIsLoadingPosts(false);
+    }, (err) => {
+      console.error("Error fetching community posts:", err);
+      setError("Failed to load posts. Please try again later.");
+      setIsLoadingPosts(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const handleUserSearch = async () => {
+    const trimmedQuery = searchQuery.trim();
+    if (trimmedQuery === '') { setSearchResults([]); setHasSearched(false); return; }
+    setIsLoadingSearch(true); setHasSearched(true); setSearchResults([]);
+    try {
+      const usersRef = collection(db, 'users');
+      const lowerCaseQuery = trimmedQuery.toLowerCase();
+      const q = query( usersRef, where('username', '>=', lowerCaseQuery), where('username', '<=', lowerCaseQuery + '\uf8ff'), limit(10) );
+      const querySnapshot = await getDocs(q);
+      const users: UserSearchResult[] = [];
+      querySnapshot.forEach((doc) => {
         const data = doc.data();
-        users.push({
-          id: doc.id,
-          username: data.username || 'N/A', // Provide default if needed
-          displayName: data.displayName,
-          photoURL: data.photoURL,
-        });
-        // }
+        users.push({ id: doc.id, username: data.username || 'N/A', displayName: data.displayName, photoURL: data.photoURL });
       });
       setSearchResults(users);
-    } catch (error) {
-      console.error("Error searching users: ", error);
-      // Consider displaying user-friendly error message
-    } finally {
-      setIsLoading(false);
+    } catch (e: any) { // Added 'any' type for error
+        console.error("Error searching users: ", e);
+        Alert.alert("Search Error", e.message || "Could not perform search.");
+    }
+    finally { setIsLoadingSearch(false); }
+  };
+
+  const navigateToUserProfile = (userId: string) => {
+    router.push({ pathname: '/(tabs)/userProfile', params: { userId: userId } });
+  };
+
+  const navigateToPostDetail = (postId: string) => {
+    console.log("Navigating to post detail for ID:", postId);
+    // Navigate to the dynamic route, passing the postId as the 'id' parameter
+    router.push(`/post/${postId}`);
+  };
+
+  const renderPostGridItem = ({ item }: { item: Post }) => (
+    <TouchableOpacity
+        style={styles.gridItem}
+        onPress={() => navigateToPostDetail(item.id)}
+        activeOpacity={0.8}
+    >
+      <Image source={{ uri: item.imageUrl }} style={styles.gridImage} resizeMode="cover" />
+    </TouchableOpacity>
+  );
+
+  const renderUserSearchItem = ({ item }: { item: UserSearchResult }) => (
+    <TouchableOpacity onPress={() => navigateToUserProfile(item.id)} style={styles.searchResultItem}>
+      {item.photoURL ?
+        <Image source={{ uri: item.photoURL }} style={styles.searchAvatar} /> :
+        <View style={[styles.searchAvatar, styles.searchAvatarPlaceholder]}><Ionicons name="person" color={themeColors.textSecondary} size={20}/></View>
+      }
+      <View>
+        <Text style={styles.searchUsername}>{item.username}</Text>
+        {item.displayName && <Text style={styles.searchDisplayName}>{item.displayName}</Text>}
+      </View>
+    </TouchableOpacity>
+  );
+
+  const toggleSearch = () => {
+    setIsSearchActive(!isSearchActive);
+    if (isSearchActive) { // Means we are closing search
+        setSearchQuery('');
+        setSearchResults([]);
+        setHasSearched(false);
     }
   };
 
-  const navigateToProfile = (userId: string) => {
-    // Navigate to the profile screen, passing the userId
-    // Use the correct path for your profile screen within the tabs structure
-    router.push({ pathname: '/userProfile', params: { userId: userId } });
+  // For rendering loading placeholders for the grid
+  const renderGridPlaceholders = () => {
+    return Array.from({ length: 9 }).map((_, index) => ( // Show e.g. 3 rows of placeholders
+      <View key={`placeholder-${index}`} style={[styles.gridItem, styles.gridItemPlaceholder]} />
+    ));
   };
 
+
   return (
-    <LinearGradient
-      colors={themeColors.backgroundGradient}
-      style={styles.gradientWrapper}
-    >
+    <LinearGradient colors={themeColors.backgroundGradient} style={styles.gradientWrapper}>
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.container}>
-          <Text style={styles.title}>Creative Community</Text>
-
-          {/* Search Input */}
-          <TextInput
-            style={styles.input}
-            placeholder="Search by username..."
-            placeholderTextColor={themeColors.textSecondary} // Style placeholder
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmitEditing={handleSearch} // Search when enter is pressed
-            autoCapitalize="none"
-            returnKeyType="search" // Set keyboard return key type
-          />
-
-          {/* Search Button (using TouchableOpacity for styling) */}
-          <TouchableOpacity
-            style={[styles.button, isLoading && styles.buttonDisabled]} // Add disabled style
-            onPress={handleSearch}
-            disabled={isLoading}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color={themeColors.textLight} />
-            ) : (
-              <Text style={styles.buttonText}>Search</Text>
-            )}
-          </TouchableOpacity>
-
-          {/* Loading Indicator */}
-          {/* Moved loading indicator inside the button or handle separately */}
-
-          {/* Results Area */}
-          <View style={styles.resultsContainer}>
-            {!isLoading && searched && searchResults.length === 0 && (
-              <Text style={styles.infoText}>No users found.</Text>
-            )}
-
-            {!isLoading && searchResults.length > 0 && (
-              <FlatList
-                data={searchResults}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <TouchableOpacity onPress={() => navigateToProfile(item.id)} style={styles.resultItem}>
-                    {/* Optional: Add user image */}
-                    {/* <Image source={item.photoURL ? { uri: item.photoURL } : require('@/assets/images/default-avatar.png')} style={styles.resultAvatar} /> */}
-                    <View style={styles.resultTextContainer}>
-                       <Text style={styles.resultUsername}>{item.username}</Text>
-                       {item.displayName && <Text style={styles.resultDisplayName}>{item.displayName}</Text>}
-                    </View>
-                  </TouchableOpacity>
-                )}
-                style={{ width: '100%' }} // Ensure FlatList takes width
-              />
-            )}
+        {!isSearchActive ? (
+          <View style={styles.header}>
+            <Text style={styles.title}>Creative Community</Text>
+            <TouchableOpacity onPress={toggleSearch} style={styles.searchIconContainer}>
+              <Ionicons name="search-outline" size={28} color={themeColors.textLight} />
+            </TouchableOpacity>
           </View>
-        </View>
+        ) : (
+          <View style={styles.searchHeader}>
+            <View style={styles.searchInputContainer}>
+                <Ionicons name="search-outline" size={20} color={themeColors.textSecondary} style={styles.searchInputIcon} />
+                <TextInput
+                    style={styles.searchInput}
+                    placeholder="Search by username..."
+                    placeholderTextColor={themeColors.textSecondary}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    onSubmitEditing={handleUserSearch}
+                    autoCapitalize="none"
+                    returnKeyType="search"
+                    autoFocus={true}
+                />
+                {searchQuery.length > 0 && (
+                    <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearSearchButton}>
+                        <Ionicons name="close-circle" size={20} color={themeColors.textSecondary} />
+                    </TouchableOpacity>
+                )}
+            </View>
+            <TouchableOpacity onPress={toggleSearch}>
+              <Text style={styles.cancelSearchText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {isSearchActive ? (
+            <View style={styles.searchResultsContainer}>
+                {isLoadingSearch && <View style={styles.centeredMessageContainer}><ActivityIndicator color={themeColors.pink} size="large" /></View>}
+                {!isLoadingSearch && hasSearched && searchResults.length === 0 && (
+                    <View style={styles.centeredMessageContainer}><Text style={styles.infoText}>No users found for "{searchQuery}".</Text></View>
+                )}
+                {!isLoadingSearch && searchResults.length > 0 && (
+                    <FlatList
+                        data={searchResults}
+                        renderItem={renderUserSearchItem}
+                        keyExtractor={(item) => item.id}
+                        showsVerticalScrollIndicator={false}
+                    />
+                )}
+            </View>
+        ) : ( // Displaying Posts Grid
+            <>
+                {isLoadingPosts && posts.length === 0 && (
+                    <FlatList // Show placeholder grid while loading
+                        data={Array.from({ length: 9 })}
+                        renderItem={({index}) => <View key={`placeholder-${index}`} style={[styles.gridItem, styles.gridItemPlaceholder]} />}
+                        keyExtractor={(item, index) => `placeholder-${index}`}
+                        numColumns={NUM_COLUMNS}
+                        contentContainerStyle={styles.gridContainer}
+                        showsVerticalScrollIndicator={false}
+                    />
+                )}
+                {!isLoadingPosts && error && (
+                    <View style={styles.centeredMessageContainer}><Text style={styles.errorText}>{error}</Text></View>
+                )}
+                {!isLoadingPosts && !error && posts.length === 0 && (
+                    <View style={styles.centeredMessageContainer}><Text style={styles.infoText}>No posts yet. Be the first to share!</Text></View>
+                )}
+                {!isLoadingPosts && posts.length > 0 && (
+                    <FlatList
+                        data={posts}
+                        renderItem={renderPostGridItem}
+                        keyExtractor={(item) => item.id}
+                        numColumns={NUM_COLUMNS}
+                        contentContainerStyle={styles.gridContainer}
+                        showsVerticalScrollIndicator={false}
+                    />
+                )}
+            </>
+        )}
       </SafeAreaView>
     </LinearGradient>
   );
 }
 
-// --- Styles (Adapted from ProfileScreen and added specifics) ---
 const styles = StyleSheet.create({
-  gradientWrapper: {
-    flex: 1,
+  gradientWrapper: { flex: 1 },
+  safeArea: { flex: 1, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
+  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 12,},
+  title: { fontSize: 24, fontWeight: 'bold', color: themeColors.textLight, },
+  searchIconContainer: { padding: 8, },
+  centeredMessageContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20,},
+  errorText: { color: themeColors.errorRed, fontSize: 16, textAlign: 'center', },
+  infoText: { color: themeColors.textSecondary, fontSize: 16, textAlign: 'center', },
+  gridContainer: {
+    paddingHorizontal: spacing, // This applies spacing on the left of the first column and right of the last
+    paddingTop: spacing,
+    // alignItems: 'flex-start', // Not needed if items handle their own margins for spacing
   },
-  safeArea: {
-    flex: 1,
+  gridItem: {
+    width: itemSize,
+    height: itemSize,
+    // margin is applied to create space between items
+    marginLeft: spacing / NUM_COLUMNS / 2, // Distribute half of inter-item spacing
+    marginRight: spacing / NUM_COLUMNS / 2,
+    marginBottom: spacing, // Vertical spacing between rows
+    backgroundColor: themeColors.darkGrey,
   },
-  container: {
-    flex: 1,
-    alignItems: 'center', // Center items horizontally
-    paddingTop: 40, // Adjust top padding as needed
-    paddingHorizontal: 20,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 25,
-    color: themeColors.textLight,
-    textAlign: 'center',
-  },
-  input: {
+  gridImage: {
     width: '100%',
-    backgroundColor: themeColors.darkGrey, // Dark input background
-    color: themeColors.textLight,         // Light text color
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: themeColors.grey,       // Subtle border
-    fontSize: 16,
-    marginBottom: 15,
+    height: '100%',
   },
-  button: {
-    width: '100%',
-    paddingVertical: 15,
-    backgroundColor: themeColors.pink, // Use theme color
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 25, // Space below button
-    minHeight: 50, // Ensure consistent height even with indicator
+  gridItemPlaceholder: {
+    backgroundColor: themeColors.darkGrey,
+    opacity: 0.5,
   },
-  buttonDisabled: {
-    backgroundColor: themeColors.grey, // Style for disabled button
-  },
-  buttonText: {
-    color: themeColors.textLight,
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  resultsContainer: {
-    flex: 1, // Allow FlatList to take remaining space
-    width: '100%',
-  },
-  infoText: { // Style for 'No users found'
-    fontSize: 16,
-    color: themeColors.textSecondary,
-    textAlign: 'center',
-    marginTop: 30,
-  },
-  resultItem: {
-    flexDirection: 'row', // Layout avatar and text
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: themeColors.grey, // Use theme color for separator
-    width: '100%',
-  },
-  // resultAvatar: { // Optional avatar styles
-  //   width: 40,
-  //   height: 40,
-  //   borderRadius: 20,
-  //   marginRight: 15,
-  //   backgroundColor: themeColors.darkGrey, // Placeholder bg
-  // },
-   resultTextContainer: {
-      flex: 1, // Take remaining space
-   },
-  resultUsername: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: themeColors.textLight, // Light text for username
-  },
-   resultDisplayName: {
-     fontSize: 14,
-     color: themeColors.textSecondary, // Secondary color for display name
-   },
+  searchHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, paddingVertical: 10, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: themeColors.grey, backgroundColor: themeColors.backgroundGradient[1], },
+  searchInputContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.darkGrey, borderRadius: 10, paddingHorizontal: 10, marginRight: 10, },
+  searchInputIcon: { marginRight: 8, },
+  searchInput: { flex: 1, height: 40, color: themeColors.textLight, fontSize: 16, },
+  clearSearchButton: { padding: 5, },
+  cancelSearchText: { color: themeColors.pink, fontSize: 16, fontWeight: '500', },
+  searchResultsContainer: { flex: 1, paddingHorizontal: 0, }, // Let items handle their own padding
+  searchResultItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: themeColors.grey, paddingHorizontal: 15, }, // Added paddingHorizontal
+  searchAvatar: { width: 40, height: 40, borderRadius: 20, marginRight: 12, backgroundColor: themeColors.grey, },
+  searchAvatarPlaceholder: { justifyContent: 'center', alignItems: 'center', },
+  searchUsername: { color: themeColors.textLight, fontSize: 16, fontWeight: '500', },
+  searchDisplayName: { color: themeColors.textSecondary, fontSize: 14, },
 });
