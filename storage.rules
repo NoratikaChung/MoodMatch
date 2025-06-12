@@ -1,0 +1,36 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o { // Matches all files in your bucket
+
+    // Rule for general user uploads (e.g., for posts from camera.tsx)
+    match /user_uploads/{userId}/{allPaths=**} {
+      // Allow read by any authenticated user (can change to 'if true;' for public)
+      allow read: if request.auth != null;
+      // Allow write only if the user is authenticated, it's their own folder,
+      // it's an image, and the size is within limits.
+      allow write: if request.auth != null &&
+                      request.auth.uid == userId &&
+                      request.resource.size < 10 * 1024 * 1024 && // Max 10MB
+                      request.resource.contentType.matches('image/.*');
+    }
+
+    // Rule for profile pictures
+    match /profile-pictures/{userId}/{fileName} {
+      // Allow public read for profile pictures
+      allow read: if true;
+      // Allow write only if user is authenticated, it's their own folder,
+      // it's an image, and size is within limits.
+      allow write: if request.auth != null &&
+                      request.auth.uid == userId &&
+                      request.resource.size < 5 * 1024 * 1024 &&  // Max 5MB
+                      request.resource.contentType.matches('image/.*');
+    }
+
+    // Optional: Default deny for any other paths not explicitly matched
+    // This is good security practice.
+    // match /{allOtherPaths=**} {
+    //   allow read, write: if false;
+    // }
+  }
+}
