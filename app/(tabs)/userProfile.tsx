@@ -1,15 +1,15 @@
-// File: app/userProfile.tsx (Standalone screen - with detailed logging for chat creation)
+// File: app/userProfile.tsx (Full code with detailed logging for chat creation)
 
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Alert, TouchableOpacity, SafeAreaView,
-  Image, ActivityIndicator, Platform, StatusBar // Added Platform, StatusBar
+  Image, ActivityIndicator, Platform, StatusBar
 } from 'react-native';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../../firebaseConfig'; // Adjusted path for root app/
+import { auth, db } from '../../firebaseConfig'; // Path relative to app/userProfile.tsx
 import { useLocalSearchParams, useRouter, useNavigation, Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { themeColors } from '../../styles/theme'; // Adjusted path for root app/
+import { themeColors } from '../../styles/theme'; // Path relative to app/userProfile.tsx
 import { Ionicons } from '@expo/vector-icons';
 import { User as FirebaseAuthUser } from 'firebase/auth';
 
@@ -18,14 +18,14 @@ interface UserProfile {
   username?: string;
   displayName?: string;
   photoURL?: string | null;
-  email?: string;
+  email?: string; // Optional: if you store public email
 }
 
 export default function UserProfileScreen() {
   const router = useRouter();
   const navigation = useNavigation();
-  const params = useLocalSearchParams<{ userId?: string }>(); // Expecting userId, make it optional for safety
-  const profileUserId = params.userId;
+  const params = useLocalSearchParams<{ userId?: string }>();
+  const profileUserId = params.userId; // The ID of the profile being viewed
 
   const [currentUser, setCurrentUser] = useState<FirebaseAuthUser | null>(auth.currentUser);
   const [profileData, setProfileData] = useState<UserProfile | null>(null);
@@ -92,7 +92,7 @@ export default function UserProfileScreen() {
     }
     if (chatLoading) return; // Prevent double clicks
 
-    console.log(`Attempting to start chat between CURRENT USER: ${currentUser.uid} and OTHER USER: ${profileUserId}`);
+    console.log(`LIVE: Attempting to start chat between CURRENT USER: ${currentUser.uid} and OTHER USER: ${profileUserId}`);
     setChatLoading(true);
 
     try {
@@ -104,65 +104,68 @@ export default function UserProfileScreen() {
       const chatId = sortedUserIds.join('_');
       const chatDocRef = doc(db, 'chats', chatId);
 
-      // Check if chat already exists (using getDoc)
+      // Fetch user details for denormalization
+      const currentUserDocSnap = await getDoc(doc(db, 'users', currentUserId));
+      // profileData for the other user is already fetched by the screen's useEffect
+
+      const currentUserProfile = currentUserDocSnap.data();
+
+      const chatDataToSave = {
+          users: sortedUserIds, // Use the sorted array with currentUserId and otherUserId
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          lastMessage: null,
+          userNames: {
+              [currentUserId]: currentUserProfile?.username || currentUserProfile?.displayName || `User ${currentUserId.substring(0,5)}`,
+              [otherUserId]: profileData?.username || profileData?.displayName || `User ${otherUserId.substring(0,5)}`,
+          },
+          userPhotos: {
+              [currentUserId]: currentUserProfile?.photoURL || null,
+              [otherUserId]: profileData?.photoURL || null,
+          }
+      };
+
+      // --- CRITICAL LOGS FOR DEBUGGING THE RULE ---
+      console.log("--- LIVE Firebase: Data for setDoc('chats/{chatId}') ---");
+      console.log("Chat ID (Document Path for setDoc):", chatId);
+      // Log the data that will become request.resource.data in rules
+      console.log("Data (request.resource.data will be this):", JSON.stringify(chatDataToSave, (key, value) => {
+        if (value && typeof value === 'object' && value.constructor && value.constructor.name === ' Timestamp') {
+          return '(Firestore ServerTimestamp representation for log)';
+        }
+        if (value && typeof value === 'object' && value._methodName === 'serverTimestamp') {
+            return '(Firestore ServerTimestamp representation for log)';
+        }
+        return value;
+      }, 2));
+      console.log("Authenticated User UID (request.auth.uid will be this):", currentUserId);
+      console.log("Is auth UID in chatDataToSave.users array?", chatDataToSave.users.includes(currentUserId));
+      console.log("Size of chatDataToSave.users array:", chatDataToSave.users.length);
+      console.log("Is users[0] a string?", typeof chatDataToSave.users[0] === 'string');
+      console.log("Is users[1] a string?", typeof chatDataToSave.users[1] === 'string');
+      // --- END CRITICAL LOGS ---
+
+      // Check if chat already exists before trying to create with setDoc
       const chatDocSnap = await getDoc(chatDocRef);
-
-      let finalChatId = chatId; // Will be used for navigation
-
       if (!chatDocSnap.exists()) {
-        console.log("Chat does not exist. Creating new chat document with ID:", chatId);
-
-        // Fetch minimal user data for denormalization
-        const currentUserDocSnap = await getDoc(doc(db, 'users', currentUserId));
-        // profileData is for the *other* user, already fetched.
-        // const otherUserDocSnap = await getDoc(doc(db, 'users', otherUserId)); // Not strictly needed if profileData is up-to-date
-
-        const currentUserProfile = currentUserDocSnap.data();
-        // const otherUserProfile = otherUserDocSnap.data(); // Or use profileData for the viewed user
-
-        const chatDataToSave = {
-            users: sortedUserIds, // Crucial: ensure this array has exactly 2 string UIDs
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp(),
-            lastMessage: null,
-            userNames: {
-                [currentUserId]: currentUserProfile?.username || currentUserProfile?.displayName || `User ${currentUserId.substring(0,5)}`,
-                [otherUserId]: profileData?.username || profileData?.displayName || `User ${otherUserId.substring(0,5)}`,
-            },
-            userPhotos: {
-                [currentUserId]: currentUserProfile?.photoURL || null,
-                [otherUserId]: profileData?.photoURL || null,
-            }
-        };
-
-        // --- CRITICAL LOGS FOR DEBUGGING THE RULE ---
-        console.log("--- Data being sent to Firestore for setDoc('chats/{chatId}') ---");
-        console.log("Constructed Chat ID (Document Path):", chatId);
-        console.log("Data (request.resource.data will be this):", JSON.stringify(chatDataToSave, null, 2));
-        console.log("Authenticated User UID (request.auth.uid will be this):", currentUserId);
-        console.log("Is auth UID in chatDataToSave.users array?", chatDataToSave.users.includes(currentUserId));
-        console.log("Size of chatDataToSave.users array:", chatDataToSave.users.length);
-        // --- END CRITICAL LOGS ---
-
-        await setDoc(chatDocRef, chatDataToSave); // Use setDoc to create with specific ID
-        console.log("New chat document created successfully with ID:", finalChatId);
-
+          console.log("Chat does not exist, creating with setDoc:", chatId);
+          await setDoc(chatDocRef, chatDataToSave); // Use setDoc to create with specific ID
+          console.log("New chat document CREATED successfully with ID:", chatId);
       } else {
-        finalChatId = chatDocSnap.id; // Should be the same as constructed chatId
-        console.log("Chat already exists with ID:", finalChatId);
+          console.log("Chat already exists with ID:", chatId, ". Navigating to existing chat.");
+          // Optionally update 'updatedAt' if you want to signify activity
+          // await updateDoc(chatDocRef, { updatedAt: serverTimestamp() });
       }
 
-      console.log("Navigating to chatRoom with chatId:", finalChatId);
-      router.push({ pathname: '/chatRoom', params: { chatId: finalChatId } }); // Path to app/chatRoom.tsx
+      router.push({ pathname: '/chatRoom', params: { chatId: chatId } }); // Path to app/chatRoom.tsx
 
-    } catch (error: any) { // Catch any error, including permissions from setDoc
-      console.error("Error in handleStartChat (could be Firestore operation or other): ", error);
-      Alert.alert("Error Starting Chat", error.message || "Could not initiate chat. Please check permissions or try again.");
+    } catch (error: any) {
+      console.error("LIVE Firebase: Error in handleStartChat: ", error);
+      Alert.alert("Error Starting Chat", error.message || "Could not initiate chat. Check console for details.");
     } finally {
       setChatLoading(false);
     }
   };
-  // --- End Start Chat Handler ---
 
   // --- Render Logic ---
   const renderContent = () => {
@@ -184,14 +187,14 @@ export default function UserProfileScreen() {
         </View>
         <Text style={styles.displayName}>{displayData.displayName || 'User'}</Text>
         <Text style={styles.username}>@{displayData.username || 'username'}</Text>
-        {displayData.email && (
+        {displayData.email && ( // Only display email if it exists on profileData
           <View style={styles.userInfo}><Text style={styles.emailText}>Email:</Text><Text style={styles.emailValue} selectable={true}>{displayData.email}</Text></View>
         )}
-        {profileUserId !== currentUser?.uid && ( // Only show Start Chat if not viewing own profile
+        {profileUserId !== currentUser?.uid && (
           <TouchableOpacity
             style={[styles.chatButton, chatLoading && styles.buttonDisabled]}
             onPress={handleStartChat}
-            disabled={chatLoading || !currentUser} // Also disable if current user is somehow null
+            disabled={chatLoading || !currentUser}
           >
             {chatLoading ? (<ActivityIndicator color={themeColors.textLight} size="small" />)
              : (<><Ionicons name="chatbubbles-outline" size={18} color={themeColors.textLight} style={{ marginRight: 8 }} /><Text style={styles.buttonText}>Start Chat</Text></>)}
@@ -203,12 +206,12 @@ export default function UserProfileScreen() {
 
   return (
     <LinearGradient colors={themeColors.backgroundGradient} style={styles.gradientWrapper} >
-      <Stack.Screen
+      <Stack.Screen // This configures the header for this specific screen
         options={{
           headerShown: true,
-          // Title is set dynamically in useEffect
+          // Title is set dynamically in useEffect once profileData is fetched
           headerStyle: { backgroundColor: themeColors.darkGrey },
-          headerTintColor: themeColors.textLight,
+          headerTintColor: themeColors.textLight, // Color of back arrow and default title
           headerTitleStyle: { color: themeColors.textLight },
         }}
       />

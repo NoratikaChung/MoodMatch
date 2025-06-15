@@ -85,14 +85,12 @@ export default function RootLayoutNav() {
                 contentStyle: { backgroundColor: 'transparent' },
              }}
           >
-            <Stack.Screen name="(tabs)" /> {/* Represents the app/(tabs)/ directory and its _layout.tsx */}
-            <Stack.Screen name="login" />   {/* Represents app/login.tsx */}
-            <Stack.Screen name="signup" />  {/* Represents app/signup.tsx */}
-            <Stack.Screen name="profile-edit" /> {/* Represents app/profile-edit.tsx */}
-            <Stack.Screen name="post" />         {/* Represents the app/post/ directory (for dynamic routes like [id].tsx within it) */}
-            <Stack.Screen name="chatRoom" />     {/* Represents app/chatRoom.tsx */}
-            {/* userProfile.tsx is inside app/(tabs)/ so it's handled by the (tabs) group definition above. */}
-            {/* +not-found.tsx is handled automatically by Expo Router. */}
+            <Stack.Screen name="(tabs)" /> 
+            <Stack.Screen name="login" />
+            <Stack.Screen name="signup" />
+            <Stack.Screen name="profile-edit" />
+            <Stack.Screen name="post" />
+            <Stack.Screen name="chatRoom" />
           </Stack>
         )}
       </LinearGradient>
