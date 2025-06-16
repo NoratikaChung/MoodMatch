@@ -132,6 +132,25 @@ export default function PostDetailScreen() {
     Alert.alert("Hide Post", `Hide post ${pId} (Functionality to be implemented).`);
   };
 
+  const handleUsernamePress = (userIdOfPostAuthor: string) => {
+    if (!userIdOfPostAuthor) return;
+    console.log("PostDetailScreen: Username/Avatar pressed, navigating to user profile for:", userIdOfPostAuthor);
+
+
+    if (userIdOfPostAuthor === currentUser?.uid) {
+      // If it's the current user's own post, navigate to their main profile tab
+      console.log("Navigating to own profile tab: /(tabs)/profile");
+      router.push('/(tabs)/profile');
+    } else {
+      // Navigate to the other user's profile screen within the (tabs) layout
+      console.log("Navigating to other user's profile: /userProfile with userId:", userIdOfPostAuthor);
+      router.push({
+        pathname: '/userProfile', // Path to your user profile screen within tabs
+        params: { userId: userIdOfPostAuthor },
+      });
+    }
+  };
+
 
   if (isLoading) {
     return (
@@ -189,6 +208,7 @@ export default function PostDetailScreen() {
           onDeletePost={handleDeletePostFromDetail}
           onHidePost={handleHidePostFromDetail}
           onPressLike={handleLike}
+          onPressUsername={handleUsernamePress}
           onPressComment={handleComment}
           onPressShare={handleShare}
           onToggleMute={handleToggleMute}
