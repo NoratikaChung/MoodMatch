@@ -1,14 +1,16 @@
-// File: app/login.tsx (With explicit transparent backgrounds)
+// File: app/login.tsx (With its own LinearGradient background)
 
 import React, { useState } from 'react';
 import {
   View, TextInput, Text, StyleSheet, Alert,
-  ActivityIndicator, TouchableOpacity, KeyboardAvoidingView, Platform
+  ActivityIndicator, TouchableOpacity, KeyboardAvoidingView, Platform,
+  StatusBar // Import StatusBar
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../firebaseConfig';
 import { themeColors } from '../styles/theme';
+import { LinearGradient } from 'expo-linear-gradient'; // Import LinearGradient
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -36,80 +38,88 @@ export default function LoginScreen() {
   const goToSignUp = () => router.push('/signup');
 
   return (
-    <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.keyboardAvoidingView} // Explicit transparent bg applied here
+    <LinearGradient
+      colors={themeColors.backgroundGradient} // Apply gradient here
+      style={styles.gradientWrapper}
     >
-        <View style={styles.container}> {/* And here */}
-          <Text style={styles.title}>MoodMatch Login</Text>
+      <StatusBar barStyle="light-content" /> {/* Ensure status bar matches dark theme */}
+      <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.keyboardAvoidingView}
+      >
+          <View style={styles.container}>
+            <Text style={styles.title}>MoodMatch Login</Text>
 
-          <TextInput
-            style={styles.input}
-            placeholder="Email Address"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            placeholderTextColor={themeColors.textSecondary}
-            keyboardAppearance="dark" // For iOS dark keyboard
-          />
-          <TextInput
-            style={styles.input}
-            placeholder="Password"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            placeholderTextColor={themeColors.textSecondary}
-            keyboardAppearance="dark" // For iOS dark keyboard
-          />
+            <TextInput
+              style={styles.input}
+              placeholder="Email Address"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              placeholderTextColor={themeColors.textSecondary}
+              keyboardAppearance="dark"
+            />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholderTextColor={themeColors.textSecondary}
+              keyboardAppearance="dark"
+            />
 
-          <TouchableOpacity
-             style={[styles.button, styles.loginButton, loading ? styles.buttonDisabled : {}]}
-             onPress={handleLogin}
-             disabled={loading}
-          >
-             {loading ? (
-                 <ActivityIndicator size="small" color={themeColors.textLight} />
-             ) : (
-                 <Text style={styles.buttonText}>Login</Text>
-             )}
-          </TouchableOpacity>
-
-          <View style={styles.switchContainer}>
-            <Text style={styles.switchText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={goToSignUp} disabled={loading}>
-                <Text style={styles.switchLink}>Sign Up</Text>
+            <TouchableOpacity
+               style={[styles.button, styles.loginButton, loading ? styles.buttonDisabled : {}]}
+               onPress={handleLogin}
+               disabled={loading}
+            >
+               {loading ? (
+                   <ActivityIndicator size="small" color={themeColors.textLight} />
+               ) : (
+                   <Text style={styles.buttonText}>Login</Text>
+               )}
             </TouchableOpacity>
-          </View>
 
-        </View>
-    </KeyboardAvoidingView>
+            <View style={styles.switchContainer}>
+              <Text style={styles.switchText}>Don't have an account? </Text>
+              <TouchableOpacity onPress={goToSignUp} disabled={loading}>
+                  <Text style={styles.switchLink}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradientWrapper: { // Style for the LinearGradient
+    flex: 1,
+  },
   keyboardAvoidingView: {
     flex: 1,
-    backgroundColor: 'transparent', // Explicitly transparent
+    // No background color needed here as gradient is the parent
   },
   container: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 30,
-    backgroundColor: 'transparent', // Explicitly transparent
+    backgroundColor: 'transparent', // Ensure this container is transparent over the gradient
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 40,
-    color: themeColors.textLight, // Ensure text contrasts with gradient
+    color: themeColors.textLight,
   },
   input: {
     width: '100%',
     height: 50,
-    backgroundColor: themeColors.darkGrey, // Or your preferred input bg
+    backgroundColor: themeColors.darkGrey,
     borderColor: themeColors.grey,
     borderWidth: 1,
     marginBottom: 20,
