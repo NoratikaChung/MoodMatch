@@ -24,7 +24,7 @@ export default function RootLayoutNav() {
   }, []);
 
   useEffect(() => {
-    if (authLoading || segments.length === 0) {
+    if (authLoading) {
       console.log(`(RootLayout Nav) WAITING: authLoading=${authLoading}, segments.length=${segments.length}`);
       return;
     }
@@ -37,7 +37,7 @@ export default function RootLayoutNav() {
     if (currentPath === '(root)' || currentPath === '') { console.log("(RootLayout Nav) Current path is initial. No redirect."); return; }
 
     const publicRoutes = ['login', 'signup'];
-    const authenticatedRootPathsOrGroups = ['(tabs)', 'post', 'profile-edit', 'chatRoom'];
+    const authenticatedRootPathsOrGroups = ['(tabs)', 'post', 'profile-edit', 'chatRoom', 'userProfile'];
 
     const isCurrentRoutePublic = publicRoutes.some(route => currentPath.startsWith(route));
     const isCurrentRouteAuthenticatedArea = authenticatedRootPathsOrGroups.some(group => currentPath.startsWith(group));
@@ -46,7 +46,7 @@ export default function RootLayoutNav() {
 
     const currentUserState = auth.currentUser;
 
-    if (currentUserState) { // User is LOGGED IN
+    if (currentUserState) {
       if (isCurrentRoutePublic) {
         console.log(`(RootLayout Nav) User LOGGED IN, but on AUTH screen "${currentPath}". Redirecting to /(tabs)/camera.`);
         router.replace('/(tabs)/camera');
@@ -56,7 +56,7 @@ export default function RootLayoutNav() {
       } else {
         console.log(`(RootLayout Nav) User LOGGED IN, on VALID route "${currentPath}". No redirect.`);
       }
-    } else { // User is NOT LOGGED IN
+    } else {
       if (!isCurrentRoutePublic) {
         console.warn(`(RootLayout Nav) User NOT LOGGED IN and currentPath "${currentPath}" is NOT auth screen. Redirecting to /login.`);
         router.replace('/login');
@@ -85,12 +85,12 @@ export default function RootLayoutNav() {
                 contentStyle: { backgroundColor: 'transparent' },
              }}
           >
-            <Stack.Screen name="(tabs)" /> 
+            <Stack.Screen name="(tabs)" />
             <Stack.Screen name="login" />
             <Stack.Screen name="signup" />
             <Stack.Screen name="profile-edit" />
-            <Stack.Screen name="post" />
             <Stack.Screen name="chatRoom" />
+            <Stack.Screen name="userProfile" />
           </Stack>
         )}
       </LinearGradient>

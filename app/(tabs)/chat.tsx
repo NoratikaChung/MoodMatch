@@ -1,9 +1,10 @@
-// app/(tabs)/chat.tsx (Chat List Screen)
+// app/(tabs)/chat.tsx (Your Provided Code - Already Correct for SafeAreaView)
 
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Image, ActivityIndicator, Platform, StatusBar, Alert
+  Image, ActivityIndicator, Platform, StatusBar, Alert,
+  SafeAreaView // <<< CORRECTLY IMPORTED HERE
 } from 'react-native';
 import { collection, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
 import { auth, db } from '../../firebaseConfig'; // Adjust path
@@ -14,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { User as FirebaseAuthUser } from 'firebase/auth';
 
 // Default avatar if user has no profile image or it fails to load
-const DEFAULT_AVATAR = require('../../assets/images/icon.png'); // ADJUST PATH
+const DEFAULT_AVATAR = require('../../assets/images/icon.png'); // ADJUST PATH if this is not your default avatar
 
 // Interface for a chat session displayed in the list
 interface ChatSession {
@@ -134,7 +135,6 @@ export default function ChatListScreen() {
     return (
       <LinearGradient colors={themeColors.backgroundGradient} style={styles.centeredFeedback}>
         <Text style={styles.errorText}>{error}</Text>
-        {/* Optional: Add a retry button */}
       </LinearGradient>
     );
   }
@@ -166,11 +166,8 @@ export default function ChatListScreen() {
   return (
     <LinearGradient colors={themeColors.backgroundGradient} style={styles.gradientWrapper}>
       <SafeAreaView style={styles.safeArea}>
-        {/* You might want a header here similar to your reference image */}
         <View style={styles.headerContainer}>
             <Text style={styles.headerTitle}>MoodMatch Chats</Text>
-            {/* Add hamburger menu icon or other icons if needed */}
-            {/* <TouchableOpacity><Ionicons name="menu" size={28} color={themeColors.textLight} /></TouchableOpacity> */}
         </View>
 
         <FlatList
@@ -193,12 +190,6 @@ export default function ChatListScreen() {
               </View>
               <View style={styles.chatMetaContainer}>
                 <Text style={styles.timestamp}>{formatChatTimestamp(item.lastMessageTimestamp)}</Text>
-                {/* Optional: Unread count badge */}
-                {/* {item.unreadCount && item.unreadCount > 0 && (
-                  <View style={styles.unreadBadge}>
-                    <Text style={styles.unreadText}>{item.unreadCount}</Text>
-                  </View>
-                )} */}
               </View>
             </TouchableOpacity>
           )}
@@ -212,101 +203,24 @@ export default function ChatListScreen() {
 const styles = StyleSheet.create({
   gradientWrapper: { flex: 1 },
   safeArea: { flex: 1, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
-  headerContainer: {
-    paddingHorizontal: 15,
-    paddingVertical: 15,
-    flexDirection: 'row',
-    justifyContent: 'space-between', // Or 'center' if only title
-    alignItems: 'center',
-    // borderBottomWidth: StyleSheet.hairlineWidth,
-    // borderBottomColor: themeColors.grey,
-  },
-  headerTitle: {
-    color: themeColors.textLight,
-    fontSize: 22,
-    fontWeight: 'bold',
-  },
-  centeredFeedback: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
+  headerContainer: { paddingHorizontal: 15, paddingVertical: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', },
+  headerTitle: { color: themeColors.textLight, fontSize: 22, fontWeight: 'bold', },
+  centeredFeedback: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, },
   loadingText: { color: themeColors.textSecondary, marginTop: 10, fontSize: 16 },
   errorText: { color: themeColors.errorRed, fontSize: 16, textAlign: 'center' },
   infoText: { color: themeColors.textSecondary, fontSize: 17, textAlign: 'center', marginBottom: 5, },
   infoTextSub: { color: themeColors.grey, fontSize: 15, textAlign: 'center', },
   loginButton: { backgroundColor: themeColors.pink, paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25, marginTop: 20, },
   loginButtonText: { color: themeColors.textLight, fontSize: 16, fontWeight: 'bold', },
-  title: { // For the "No conversations yet" screen
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: themeColors.textLight,
-    marginBottom: 10,
-  },
-  // Chat Item Styles
-  chatItemContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    alignItems: 'center',
-    backgroundColor: themeColors.darkGrey, // Or a slightly lighter shade
-    marginHorizontal: 10,
-    borderRadius: 10,
-    marginVertical: 5,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.5,
-  },
-  avatar: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    marginRight: 12,
-    backgroundColor: themeColors.grey, // Placeholder color
-  },
-  chatTextContainer: {
-    flex: 1, // Takes up available space
-    justifyContent: 'center',
-  },
-  userName: {
-    color: themeColors.textLight,
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 3,
-  },
-  lastMessage: {
-    color: themeColors.textSecondary,
-    fontSize: 14,
-  },
-  chatMetaContainer: {
-    alignItems: 'flex-end', // Aligns timestamp and badge to the right
-    marginLeft: 10,
-  },
-  timestamp: {
-    color: themeColors.grey,
-    fontSize: 12,
-    marginBottom: 5,
-  },
-  unreadBadge: {
-    backgroundColor: themeColors.pink,
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  unreadText: {
-    color: themeColors.textLight,
-    fontSize: 10,
-    fontWeight: 'bold',
-  },
-  separator: {
-    // height: StyleSheet.hairlineWidth,
-    // backgroundColor: themeColors.grey,
-    // marginHorizontal: 15, // If you want a line separator
-    height: 0, // No separator line, using margin on items for space
-  },
+  title: { fontSize: 22, fontWeight: 'bold', color: themeColors.textLight, marginBottom: 10, },
+  chatItemContainer: { flexDirection: 'row', paddingHorizontal: 15, paddingVertical: 12, alignItems: 'center', backgroundColor: themeColors.darkGrey, marginHorizontal: 10, borderRadius: 10, marginVertical: 5, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1.5, },
+  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 12, backgroundColor: themeColors.grey, },
+  chatTextContainer: { flex: 1, justifyContent: 'center', },
+  userName: { color: themeColors.textLight, fontSize: 16, fontWeight: 'bold', marginBottom: 3, },
+  lastMessage: { color: themeColors.textSecondary, fontSize: 14, },
+  chatMetaContainer: { alignItems: 'flex-end', marginLeft: 10, },
+  timestamp: { color: themeColors.grey, fontSize: 12, marginBottom: 5, },
+  unreadBadge: { backgroundColor: themeColors.pink, borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center', },
+  unreadText: { color: themeColors.textLight, fontSize: 10, fontWeight: 'bold', },
+  separator: { height: 0, },
 });

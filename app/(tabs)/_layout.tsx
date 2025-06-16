@@ -14,7 +14,7 @@ const CustomFlexTabButton = (props: any) => {
       onPress={onPress}
       onLongPress={onLongPress}
       style={({ pressed }) => [
-        stylesInternalTabs.customTabButtonContainer, // Use renamed style object
+        stylesInternalTabs.customTabButtonContainer,
         { opacity: pressed ? 0.7 : 1 },
         style
       ]}
@@ -26,7 +26,6 @@ const CustomFlexTabButton = (props: any) => {
   );
 };
 
-// Renamed to avoid conflict if this file itself is imported elsewhere or for clarity
 const stylesInternalTabs = StyleSheet.create({
   customTabButtonContainer: {
     flex: 1,
@@ -59,8 +58,6 @@ export default function TabLayout() {
         tabBarIconStyle: { marginTop: 3 },
       }}>
 
-      {/* === REORDERED Visible Tab Screens === */}
-      {/* 1. Camera Tab */}
       <Tabs.Screen
         name="camera"
         options={{
@@ -69,7 +66,7 @@ export default function TabLayout() {
           tabBarButton: (props) => <CustomFlexTabButton {...props} />,
         }}
       />
-      {/* 2. Community Tab */}
+
       <Tabs.Screen
         name="community"
         options={{
@@ -78,16 +75,16 @@ export default function TabLayout() {
           tabBarButton: (props) => <CustomFlexTabButton {...props} />,
         }}
       />
-      {/* 3. Chat Tab */}
+
       <Tabs.Screen
-        name="chat" // Corresponds to app/(tabs)/chat.tsx (your ChatListScreen)
+        name="chat"
         options={{
           title: 'Chat',
           tabBarIcon: ({ color, size, focused }) => (<Ionicons name={focused ? "chatbubbles" : "chatbubbles-outline"} size={size} color={color} />),
           tabBarButton: (props) => <CustomFlexTabButton {...props} />,
         }}
       />
-      {/* 4. Profile Tab */}
+
       <Tabs.Screen
         name="profile"
         options={{
@@ -96,29 +93,6 @@ export default function TabLayout() {
           tabBarButton: (props) => <CustomFlexTabButton {...props} />,
         }}
       />
-      {/* === END Reordered Visible Tab Screens === */}
-
-
-      {/* --- Hidden Screen for User Profile View (Keep this definition) --- */}
-      <Tabs.Screen
-        name="userProfile" // Assumes app/(tabs)/userProfile.tsx still exists
-        options={
-          ({ navigation }) => ({
-            headerShown: true,
-            title: 'User Profile',
-            headerStyle: { backgroundColor: themeColors.darkGrey },
-            headerTintColor: themeColors.textLight,
-            headerTitleStyle: { color: themeColors.textLight },
-            headerLeft: () => (
-              <TouchableOpacity onPress={() => navigation.goBack()} style={{ marginLeft: 15 }} >
-                <Ionicons name="chevron-back" size={28} color={themeColors.textLight} />
-              </TouchableOpacity>
-            ),
-            tabBarButton: () => null,
-          })
-        }
-      />
-      {/* === END Hidden User Profile Screen === */}
 
     </Tabs>
   );

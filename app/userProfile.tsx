@@ -5,11 +5,11 @@ import {
   View, Text, StyleSheet, Alert, TouchableOpacity, SafeAreaView,
   Image, ActivityIndicator, Platform, StatusBar
 } from 'react-native';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db } from '../../firebaseConfig'; // Path relative to app/userProfile.tsx
+import { doc, getDoc, setDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { auth, db } from '../firebaseConfig'; // Path relative to app/userProfile.tsx
 import { useLocalSearchParams, useRouter, useNavigation, Stack } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { themeColors } from '../../styles/theme'; // Path relative to app/userProfile.tsx
+import { themeColors } from '../styles/theme'; // Path relative to app/userProfile.tsx
 import { Ionicons } from '@expo/vector-icons';
 import { User as FirebaseAuthUser } from 'firebase/auth';
 
@@ -122,7 +122,11 @@ export default function UserProfileScreen() {
           userPhotos: {
               [currentUserId]: currentUserProfile?.photoURL || null,
               [otherUserId]: profileData?.photoURL || null,
-          }
+          },
+          readBy: {
+            [currentUserId]: serverTimestamp(), // The user creating the chat has "read" up to this point
+            [otherUserId]: Timestamp.fromDate(new Date(0)) // The other user has read nothing (epoch time)
+        }
       };
 
       // --- CRITICAL LOGS FOR DEBUGGING THE RULE ---

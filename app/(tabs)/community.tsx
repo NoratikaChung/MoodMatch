@@ -111,7 +111,7 @@ export default function CommunityScreen() {
   };
 
   const navigateToUserProfile = (userId: string) => {
-    router.push({ pathname: '/(tabs)/userProfile', params: { userId: userId } });
+    router.push({ pathname: '/userProfile', params: { userId: userId } });
   };
 
   const navigateToPostDetail = (postId: string) => {
