@@ -15,6 +15,7 @@ import { Audio } from "expo-av";
 import { httpsCallable } from "firebase/functions";
 import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import CustomAlert from '../../components/ui/CustomAlert'; // <<< Import the alert component
 
 // --- Interfaces ---
 interface RecommendedTrack { id: string; name: string; artists: string[]; previewUrl: string | null; spotifyUrl: string; albumImageUrl: string | null; }
@@ -50,6 +51,11 @@ export default function CameraScreen() {
   const [selectedSongForPreview, setSelectedSongForPreview] = useState<RecommendedTrack | null>(null);
   const [generatedCaptionSuggestions, setGeneratedCaptionSuggestions] = useState<string[] | null>(null);
   const [currentCaptionSuggestion, setCurrentCaptionSuggestion] = useState<string | null>(null);
+
+  // <<< State for the alert and submission status >>>
+  const [alertVisible, setAlertVisible] = useState(false);
+  const [alertInfo, setAlertInfo] = useState({ title: '', message: '', isError: false });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const resetForNewImageSelection = () => {
     setSelectedImageUri(null); setSelectedImageWidth(null); setSelectedImageHeight(null);
@@ -211,27 +217,42 @@ export default function CameraScreen() {
 
   const handlePost = async () => {
     if (!uploadedImageUrl || !auth.currentUser) return;
-    setStatusMessage("Posting...");
+
+    setIsSubmitting(true);
+    setStatusMessage("Submitting for review...");
+
     try {
-      const userDocRef = doc(db, "users", auth.currentUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      let username = auth.currentUser.email?.split('@')[0] || `User${auth.currentUser.uid.substring(0,5)}`;
-      let userProfileImageUrl: string | null = null;
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        username = userData.username || username; userProfileImageUrl = userData.photoURL || null;
-      }
-      const postData = {
-        userId: auth.currentUser.uid, username, userProfileImageUrl,
-        imageUrl: uploadedImageUrl, caption: chosenCaption || null,
-        song: chosenSong ? { id: chosenSong.id, name: chosenSong.name, artists: chosenSong.artists, albumImageUrl: chosenSong.albumImageUrl, previewUrl: chosenSong.previewUrl, spotifyUrl: chosenSong.spotifyUrl } : null,
-        createdAt: serverTimestamp(), likesCount: 0, likedBy: [], commentsCount: 0,
+      const moderatePost = httpsCallable(functions, 'moderatePost');
+      const postPayload = {
+        userId: auth.currentUser.uid,
+        imageUrl: uploadedImageUrl,
+        caption: chosenCaption || null,
+        song: chosenSong ? {
+          id: chosenSong.id,
+          name: chosenSong.name,
+          artists: chosenSong.artists,
+          albumImageUrl: chosenSong.albumImageUrl,
+          previewUrl: chosenSong.previewUrl,
+          spotifyUrl: chosenSong.spotifyUrl,
+        } : null,
       };
-      await addDoc(collection(db, "posts"), postData);
-      Alert.alert("Post Created!", "Your content is live in the community feed.");
-      resetForNewImageSelection();
+
+      const result = await moderatePost(postPayload);
+      const { status, reason } = result.data as { status: string; reason: string };
+
+      if (status === 'approved') {
+        setAlertInfo({ title: 'Success!', message: 'Your post is now live in the community.', isError: false });
+        setAlertVisible(true);
+      } else {
+        setAlertInfo({ title: 'Post Blocked', message: reason, isError: true });
+        setAlertVisible(true);
+      }
     } catch (e: any) {
-      console.error("Error posting content:", e); setError(`Failed to post: ${e.message}`);
+      console.error("Error calling moderatePost function:", e);
+      setAlertInfo({ title: 'Submission Error', message: `Could not submit post: ${e.message}`, isError: true });
+      setAlertVisible(true);
+    } finally {
+      setIsSubmitting(false);
       setStatusMessage("");
     }
   };
@@ -262,7 +283,9 @@ export default function CameraScreen() {
           )}
 
           {error && <Text style={[styles.statusMessageText, styles.errorTextDisplay]}>{error}</Text>}
-          {statusMessage && !error && !isUploading && !isProcessingSong && !isProcessingCaption && <Text style={styles.statusMessageText}>{statusMessage}</Text>}
+          {statusMessage && !isSubmitting && !error && !isUploading && !isProcessingSong && !isProcessingCaption && <Text style={styles.statusMessageText}>{statusMessage}</Text>}
+
+          {isSubmitting && <View style={styles.loadingFullWidth}><ActivityIndicator size="large" color={themeColors.pink} /><Text style={styles.progressText}>{statusMessage}</Text></View>}
 
           {(currentStage === 'songConfirmed' || currentStage === 'captionConfirmed' || currentStage === 'bothConfirmed') && (
             <View style={styles.chosenItemsContainer}>
@@ -326,11 +349,10 @@ export default function CameraScreen() {
               : <TouchableOpacity style={[styles.button, styles.addSongButton]} onPress={navigateToPreferences}><Ionicons name="musical-notes-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}} /><Text style={styles.buttonText}>Add Song</Text></TouchableOpacity>}
               {chosenCaption ? <TouchableOpacity style={[styles.button, styles.backButton]} onPress={goBackToCaptionSelection}><Ionicons name="arrow-back" size={18} color={themeColors.textLight} style={{marginRight: 6}} /><Text style={styles.buttonText}>Change Caption</Text></TouchableOpacity>
               : <TouchableOpacity style={[styles.button, styles.addCaptionButton]} onPress={initiateGetCaption}><Ionicons name="chatbubble-ellipses-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}} /><Text style={styles.buttonText}>Add Caption</Text></TouchableOpacity>}
-              <TouchableOpacity style={[styles.button, styles.postButton]} onPress={handlePost}><Ionicons name="send-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}}/><Text style={styles.buttonText}>Post</Text></TouchableOpacity>
+              <TouchableOpacity style={[styles.button, styles.postButton]} onPress={handlePost} disabled={isSubmitting}><Ionicons name="send-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}}/><Text style={styles.buttonText}>Post</Text></TouchableOpacity>
             </View>
           )}
         </ScrollView>
-        {/* <<< DISCARD BUTTON MOVED TO THE BOTTOM LEFT >>> */}
         {currentStage !== "initial" && !isUploading && (
           <View style={styles.footer}>
             <TouchableOpacity style={styles.discardButton} onPress={resetForNewImageSelection}>
@@ -340,6 +362,19 @@ export default function CameraScreen() {
           </View>
         )}
       </View>
+
+      <CustomAlert
+        visible={alertVisible}
+        title={alertInfo.title}
+        message={alertInfo.message}
+        isError={alertInfo.isError}
+        onClose={() => {
+          setAlertVisible(false);
+          if (!alertInfo.isError) {
+            resetForNewImageSelection();
+          }
+        }}
+      />
     </LinearGradient>
   );
 }
@@ -395,7 +430,6 @@ const styles = StyleSheet.create({
     finalActionsContainer: { width: '90%', alignItems: 'center', gap: 10, marginVertical: 15 },
     addCaptionButton: { backgroundColor: themeColors.blue, flex: 0, paddingHorizontal: 30 },
     addSongButton: { backgroundColor: themeColors.pink, flex: 0, paddingHorizontal: 30 },
-    // <<< THE FIX: Using a base button style for consistent padding >>>
     backButton: { backgroundColor: themeColors.grey, flex: 0 },
     footer: { position: 'absolute', bottom: 20, left: 20 },
     discardButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.errorRed, paddingVertical: 10, paddingHorizontal: 15, borderRadius: 20, elevation: 5 },
