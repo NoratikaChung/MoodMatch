@@ -37,7 +37,7 @@ export default function RootLayoutNav() {
     if (currentPath === '(root)' || currentPath === '') { console.log("(RootLayout Nav) Current path is initial. No redirect."); return; }
 
     const publicRoutes = ['login', 'signup'];
-    const authenticatedRootPathsOrGroups = ['(tabs)', 'post', 'profile-edit', 'chatRoom', 'userProfile'];
+    const authenticatedRootPathsOrGroups = ['(tabs)', 'post', 'profile-edit', 'chatRoom', 'userProfile', 'settings'];
 
     const isCurrentRoutePublic = publicRoutes.some(route => currentPath.startsWith(route));
     const isCurrentRouteAuthenticatedArea = authenticatedRootPathsOrGroups.some(group => currentPath.startsWith(group));
@@ -91,6 +91,7 @@ export default function RootLayoutNav() {
             <Stack.Screen name="profile-edit" />
             <Stack.Screen name="chatRoom" />
             <Stack.Screen name="userProfile" />
+            <Stack.Screen name="settings" />
           </Stack>
         )}
       </LinearGradient>

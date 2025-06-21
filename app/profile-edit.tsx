@@ -309,7 +309,7 @@ export default function ProfileEditScreen() {
 
         {/* Cancel Button */}
         {!loading && !imageUploading && (
-             <TouchableOpacity style={styles.cancelButton} onPress={() => router.replace('/(tabs)/profile')}>
+             <TouchableOpacity style={styles.cancelButton} onPress={() => router.replace('settings')}>
                  <Text style={styles.cancelButtonText}>Cancel</Text>
              </TouchableOpacity>
          )}

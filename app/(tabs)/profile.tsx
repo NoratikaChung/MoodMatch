@@ -4,7 +4,7 @@ import {
   TouchableOpacity, SafeAreaView, Image, ActivityIndicator, FlatList, ScrollView,
   Platform, StatusBar
 } from 'react-native';
-import { signOut } from 'firebase/auth';
+// `signOut` is no longer needed here, as it's moved to the settings page
 import {
   doc,
   onSnapshot,
@@ -15,13 +15,10 @@ import {
   deleteDoc,
 } from 'firebase/firestore';
 import { auth, db } from '../../firebaseConfig';
-import { useRouter, Link, useNavigation } from 'expo-router';
+import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { themeColors } from '../../styles/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
-
-// Import your new components
 import AppHeader from '../../components/AppHeader';
 import PostCard, { Post as PostCardData } from '../../components/PostCard';
 
@@ -33,7 +30,6 @@ interface UserProfile {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   const user = auth.currentUser;
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -42,7 +38,7 @@ export default function ProfileScreen() {
   const [userPosts, setUserPosts] = useState<PostCardData[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(true);
 
-  // Effect to fetch profile data
+  // Effect to fetch profile data (UNCHANGED)
   useEffect(() => {
     if (!user) {
       setLoadingProfile(false); setProfile(null); setUserPosts([]); setLoadingPosts(false); return;
@@ -59,7 +55,7 @@ export default function ProfileScreen() {
     return () => unsubscribeProfile();
   }, [user]);
 
-  // Effect to fetch user's posts
+  // Effect to fetch user's posts (UNCHANGED)
   useEffect(() => {
     if (!user) {
       setUserPosts([]); setLoadingPosts(false); return;
@@ -78,11 +74,9 @@ export default function ProfileScreen() {
     return () => { unsubscribePosts(); };
   }, [user]);
 
-  const handleLogout = async () => {
-    try { await signOut(auth); }
-    catch (error: any) { console.error('Sign out error:', error); Alert.alert('Logout Error', error.message || 'Failed to sign out.'); }
-  };
+  // The handleLogout function is removed from here as it's moved to the settings page.
 
+  // These functions are kept as they are used by PostCard (UNCHANGED)
   const handleDeleteConfirmation = (postId: string) => {
     Alert.alert( "Delete Post", "Are you sure you want to delete this post? This action cannot be undone.",
       [
@@ -98,7 +92,6 @@ export default function ProfileScreen() {
       { cancelable: true }
     );
   };
-
   const handleHidePostAction = (postId: string) => {
     Alert.alert("Hide Post", "This functionality will be implemented later.");
   };
@@ -106,6 +99,7 @@ export default function ProfileScreen() {
   const isLoadingGlobal = loadingProfile && !profile;
   const needsSetup = user && !loadingProfile && (!profile || !profile.username);
 
+  // --- UPDATED: This function is now cleaner ---
   const renderProfileInfo = () => (
     <>
       <View style={styles.profilePicContainer}>
@@ -113,11 +107,6 @@ export default function ProfileScreen() {
       </View>
       <Text style={styles.displayName}>{profile?.displayName || 'Your Name'}</Text>
       <Text style={styles.username}>@{profile?.username || 'username'}</Text>
-      <View style={styles.userInfo}><Text style={styles.emailText}>Email:</Text><Text style={styles.emailValue} selectable={true}>{user?.email}</Text></View>
-      <Link href={{ pathname: "/profile-edit", params: { mode: 'edit', currentUsername: profile?.username || '', currentDisplayName: profile?.displayName || '', currentPhotoURL: profile?.photoURL || '' }}} asChild>
-        <TouchableOpacity style={styles.editButton}><Ionicons name="pencil" size={18} color={themeColors.textLight} /><Text style={styles.editButtonText}>Edit Profile</Text></TouchableOpacity>
-      </Link>
-      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}><Text style={styles.logoutButtonText}>Logout</Text></TouchableOpacity>
     </>
   );
 
@@ -138,12 +127,9 @@ export default function ProfileScreen() {
                 showMenu={true}
                 onDeletePost={handleDeleteConfirmation}
                 onHidePost={handleHidePostAction}
-                onPressPost={(postId) => Alert.alert("View Post Details", `Would navigate to details for post: ${postId}`)}
-                onPressUsername={(userId) => { if (userId !== user?.uid) { Alert.alert("View Profile", `View user ${userId}`); }}}
               />
             </View>
           )}
-          // This makes the entire page scroll smoothly as one unit
           scrollEnabled={false}
           ListFooterComponent={<View style={{ height: 20 }} />}
         />
@@ -151,20 +137,38 @@ export default function ProfileScreen() {
     </View>
   );
 
-  if (isLoadingGlobal) { /* ... loading UI ... */ }
-  if (error && !profile && !userPosts.length) { /* ... error UI ... */ }
-  if (!user) { /* ... not logged in UI ... */ }
-  if (needsSetup) { /* ... setup profile UI ... */ }
+  // Conditional rendering for loading/error/setup states (UNCHANGED)
+  if (isLoadingGlobal) { /* ... your loading UI ... */ }
+  if (error && !profile && !userPosts.length) { /* ... your error UI ... */ }
+  if (!user) { /* ... your not logged in UI ... */ }
+  if (needsSetup) { /* ... your setup profile UI ... */ }
 
   return (
     <LinearGradient colors={themeColors.backgroundGradient} style={styles.gradientWrapper} >
       <SafeAreaView style={styles.safeArea}>
-        {/* The new header is placed here, outside the scrollable content */}
+        {/* --- UPDATED: The header now contains a settings icon --- */}
         <AppHeader>
-          <Text style={styles.headerTitle}>Profile</Text>
+          <View style={styles.headerContent}>
+            <View style={styles.headerIcon} />{/* Left spacer to center the title */}
+            <Text style={styles.headerTitle}>Profile</Text>
+            <TouchableOpacity
+              style={styles.headerIcon}
+              onPress={() => router.push({
+                pathname: '/settings',
+                params: {
+                  currentUsername: profile?.username || '',
+                  currentDisplayName: profile?.displayName || '',
+                  currentPhotoURL: profile?.photoURL || '',
+                  email: user?.email || ''
+                }
+              })}
+            >
+              <Ionicons name="menu-outline" size={32} color={themeColors.textLight} />
+            </TouchableOpacity>
+          </View>
         </AppHeader>
 
-        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+        <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
           {renderProfileInfo()}
           {renderPostsList()}
         </ScrollView>
@@ -174,39 +178,31 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  gradientWrapper: { flex: 1, },
-  safeArea: { flex: 1, },
+  gradientWrapper: { flex: 1 },
+  safeArea: { flex: 1 },
   fullScreenLoader: { flex: 1, justifyContent: 'center', alignItems: 'center'},
-  scrollContainer: {
-    alignItems: 'center',
-    paddingHorizontal: 0,
-    paddingBottom: 40,
-    // Add padding to create space below the fixed header
-    paddingTop: 20,
-  },
-  // The old 'title' style is no longer needed
+  scrollContainer: { alignItems: 'center', paddingHorizontal: 0, paddingBottom: 40, paddingTop: 20 },
+  // --- NEW STYLES for the updated header ---
+  headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
+  headerTitle: { color: themeColors.textLight, fontSize: 22, fontWeight: 'bold' },
+  headerIcon: { width: 40, alignItems: 'center' },
+  // --- END OF NEW STYLES ---
   profilePicContainer: { width: 120, height: 120, borderRadius: 60, overflow: 'hidden', marginBottom: 20, borderWidth: 3, borderColor: themeColors.pink, backgroundColor: themeColors.darkGrey, alignSelf: 'center' },
-  profilePic: { width: '100%', height: '100%', },
-  profilePicPlaceholder: { justifyContent: 'center', alignItems: 'center', },
-  displayName: { fontSize: 22, fontWeight: '600', color: themeColors.textLight, marginBottom: 5, textAlign: 'center',},
-  username: { fontSize: 16, color: themeColors.textSecondary, marginBottom: 25, textAlign: 'center', },
-  userInfo: { alignItems: 'center', marginBottom: 30, backgroundColor: themeColors.darkGrey, paddingVertical: 10, paddingHorizontal: 20, borderRadius: 10, width: '90%', maxWidth: 400, alignSelf: 'center' },
-  emailText: { fontSize: 14, color: themeColors.textSecondary, marginBottom: 3, },
-  emailValue: { fontSize: 15, fontWeight: '500', color: themeColors.textLight, },
-  editButton: { flexDirection: 'row', alignItems: 'center', marginTop: 15, paddingHorizontal: 25, paddingVertical: 12, backgroundColor: themeColors.blue, borderRadius: 25, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5, marginBottom: 15, alignSelf: 'center' },
-  editButtonText: { color: themeColors.textLight, fontSize: 16, fontWeight: 'bold', marginLeft: 8, },
-  logoutButton: { marginTop: 10, paddingHorizontal: 40, paddingVertical: 15, backgroundColor: themeColors.pink, borderRadius: 25, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5, alignSelf: 'center' },
-  logoutButtonText: { color: themeColors.textLight, fontSize: 16, fontWeight: 'bold', },
-  infoText: { fontSize: 18, color: themeColors.textSecondary, marginTop: 50, textAlign: 'center', },
-  errorText: { fontSize: 16, color: themeColors.errorRed, marginTop: 50, textAlign: 'center', paddingHorizontal: 15, },
-  setupContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 50, },
-  setupText: { fontSize: 24, fontWeight: '600', color: themeColors.textLight, marginBottom: 10, },
-  setupSubText: { fontSize: 16, color: themeColors.textSecondary, marginBottom: 30, textAlign: 'center', },
-  setupButton: { marginTop: 10, paddingHorizontal: 40, paddingVertical: 15, backgroundColor: themeColors.pink, borderRadius: 25, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5, marginBottom: 40, },
-  setupButtonText: { color: themeColors.textLight, fontSize: 16, fontWeight: 'bold', },
-  logoutButtonSmall: { marginTop: 0, paddingHorizontal: 25, paddingVertical: 10, backgroundColor: 'transparent', borderColor: themeColors.grey, borderWidth: 1, borderRadius: 20, },
-  postsSection: { marginTop: 20, width: '100%', },
-  sectionTitle: { fontSize: 20, fontWeight: '600', color: themeColors.textLight, marginBottom: 15, paddingHorizontal: 15, },
-  noPostsText: { fontSize: 15, color: themeColors.textSecondary, textAlign: 'center', marginTop: 20, },
-  postCardWrapperProfile: { marginBottom: 15, marginHorizontal: 10, borderRadius: 10, overflow: 'hidden', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2, }, headerTitle: { color: themeColors.textLight, fontSize: 22, fontWeight: 'bold', textAlign: 'center' },
+  profilePic: { width: '100%', height: '100%' },
+  profilePicPlaceholder: { justifyContent: 'center', alignItems: 'center' },
+  displayName: { fontSize: 22, fontWeight: '600', color: themeColors.textLight, marginBottom: 5, textAlign: 'center' },
+  username: { fontSize: 16, color: themeColors.textSecondary, marginBottom: 25, textAlign: 'center' },
+  // --- REMOVED unused styles for buttons and user info box ---
+  infoText: { fontSize: 18, color: themeColors.textSecondary, marginTop: 50, textAlign: 'center' },
+  errorText: { fontSize: 16, color: themeColors.errorRed, marginTop: 50, textAlign: 'center', paddingHorizontal: 15 },
+  setupContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 50 },
+  setupText: { fontSize: 24, fontWeight: '600', color: themeColors.textLight, marginBottom: 10 },
+  setupSubText: { fontSize: 16, color: themeColors.textSecondary, marginBottom: 30, textAlign: 'center' },
+  setupButton: { marginTop: 10, paddingHorizontal: 40, paddingVertical: 15, backgroundColor: themeColors.pink, borderRadius: 25, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5, marginBottom: 40 },
+  setupButtonText: { color: themeColors.textLight, fontSize: 16, fontWeight: 'bold' },
+  logoutButtonSmall: { marginTop: 0, paddingHorizontal: 25, paddingVertical: 10, backgroundColor: 'transparent', borderColor: themeColors.grey, borderWidth: 1, borderRadius: 20 },
+  postsSection: { marginTop: 20, width: '100%' },
+  sectionTitle: { fontSize: 20, fontWeight: '600', color: themeColors.textLight, marginBottom: 15, paddingHorizontal: 15 },
+  noPostsText: { fontSize: 15, color: themeColors.textSecondary, textAlign: 'center', marginTop: 20 },
+  postCardWrapperProfile: { marginBottom: 15, marginHorizontal: 10, borderRadius: 10, overflow: 'hidden', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2 },
 });
