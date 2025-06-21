@@ -1,5 +1,3 @@
-// File: app/(tabs)/profile.tsx (Adding horizontal margin to PostCard wrappers)
-
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, Alert,
@@ -21,18 +19,17 @@ import { useRouter, Link, useNavigation } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { themeColors } from '../../styles/theme';
 import { Ionicons } from '@expo/vector-icons';
-import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu'; // Keep Menu imports
+import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 
-// Import PostCard and its Post interface (adjust path if necessary)
+// Import your new components
+import AppHeader from '../../components/AppHeader';
 import PostCard, { Post as PostCardData } from '../../components/PostCard';
 
-// Interface for user profile data
 interface UserProfile {
   username?: string;
   displayName?: string;
   photoURL?: string | null;
 }
-// PostCardData interface is imported from PostCard.tsx
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -126,29 +123,28 @@ export default function ProfileScreen() {
 
   const renderPostsList = () => (
     <View style={styles.postsSection}>
-      <Text style={styles.sectionTitle}>Your Creative Posts</Text>
+      <Text style={styles.sectionTitle}>Your Posts</Text>
       {loadingPosts && userPosts.length === 0 && <ActivityIndicator color={themeColors.pink} style={{marginTop: 20}} />}
       {!loadingPosts && userPosts.length === 0 && (<Text style={styles.noPostsText}>You haven't created any posts yet.</Text>)}
       {userPosts.length > 0 && (
         <FlatList
           data={userPosts}
           keyExtractor={(item) => item.id}
-          numColumns={1} // Displaying full PostCards
           renderItem={({ item }) => (
-            <View style={styles.postCardWrapperProfile}> {/* Wrapper for margins */}
+            <View style={styles.postCardWrapperProfile}>
               <PostCard
                 post={item}
                 currentUserId={user?.uid}
-                showMenu={true} // Tell PostCard to show its menu
-                onDeletePost={handleDeleteConfirmation} // Pass delete handler
-                onHidePost={handleHidePostAction}       // Pass hide handler
+                showMenu={true}
+                onDeletePost={handleDeleteConfirmation}
+                onHidePost={handleHidePostAction}
                 onPressPost={(postId) => Alert.alert("View Post Details", `Would navigate to details for post: ${postId}`)}
                 onPressUsername={(userId) => { if (userId !== user?.uid) { Alert.alert("View Profile", `View user ${userId}`); }}}
-                // Add other handlers like onPressLike, onPressComment as needed
               />
             </View>
           )}
-          ItemSeparatorComponent={() => <View style={styles.postSeparator} />}
+          // This makes the entire page scroll smoothly as one unit
+          scrollEnabled={false}
           ListFooterComponent={<View style={{ height: 20 }} />}
         />
       )}
@@ -163,8 +159,12 @@ export default function ProfileScreen() {
   return (
     <LinearGradient colors={themeColors.backgroundGradient} style={styles.gradientWrapper} >
       <SafeAreaView style={styles.safeArea}>
+        {/* The new header is placed here, outside the scrollable content */}
+        <AppHeader>
+          <Text style={styles.headerTitle}>Profile</Text>
+        </AppHeader>
+
         <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <Text style={styles.title}>Profile</Text>
           {renderProfileInfo()}
           {renderPostsList()}
         </ScrollView>
@@ -173,16 +173,18 @@ export default function ProfileScreen() {
   );
 }
 
-// Styles for Popup Menu used by PostCard (if PostCard defines its own styles, this might be redundant here)
-// For clarity, if PostCard has its own menuOptionsStylesCard, this can be removed from profile.tsx
-// const menuOptionsStyles = { ... };
-
 const styles = StyleSheet.create({
   gradientWrapper: { flex: 1, },
   safeArea: { flex: 1, },
   fullScreenLoader: { flex: 1, justifyContent: 'center', alignItems: 'center'},
-  scrollContainer: { alignItems: 'center', paddingHorizontal: 0, paddingBottom: 40, },
-  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 30, color: themeColors.textLight, textAlign: 'center', paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0, },
+  scrollContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 0,
+    paddingBottom: 40,
+    // Add padding to create space below the fixed header
+    paddingTop: 20,
+  },
+  // The old 'title' style is no longer needed
   profilePicContainer: { width: 120, height: 120, borderRadius: 60, overflow: 'hidden', marginBottom: 20, borderWidth: 3, borderColor: themeColors.pink, backgroundColor: themeColors.darkGrey, alignSelf: 'center' },
   profilePic: { width: '100%', height: '100%', },
   profilePicPlaceholder: { justifyContent: 'center', alignItems: 'center', },
@@ -203,39 +205,8 @@ const styles = StyleSheet.create({
   setupButton: { marginTop: 10, paddingHorizontal: 40, paddingVertical: 15, backgroundColor: themeColors.pink, borderRadius: 25, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5, marginBottom: 40, },
   setupButtonText: { color: themeColors.textLight, fontSize: 16, fontWeight: 'bold', },
   logoutButtonSmall: { marginTop: 0, paddingHorizontal: 25, paddingVertical: 10, backgroundColor: 'transparent', borderColor: themeColors.grey, borderWidth: 1, borderRadius: 20, },
-
-  postsSection: {
-    marginTop: 20,
-    width: '100%',
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: themeColors.textLight,
-    marginBottom: 15,
-    paddingHorizontal: 15, // Give title some padding if cards have margin
-  },
-  noPostsText: {
-    fontSize: 15,
-    color: themeColors.textSecondary,
-    textAlign: 'center',
-    marginTop: 20,
-  },
-  postCardWrapperProfile: {
-    marginBottom: 15,
-    marginHorizontal: 10, // <<< ADDED HORIZONTAL MARGIN
-    borderRadius: 10,
-    overflow: 'hidden',
-    // PostCard itself will have a background color
-    // Shadow can be applied here or on PostCard's container
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-  },
-  postSeparator: { // For vertical space between full-width cards
-    height: 15,
-  },
-  // Removed styles specific to the old grid item and menu, as PostCard handles its content
+  postsSection: { marginTop: 20, width: '100%', },
+  sectionTitle: { fontSize: 20, fontWeight: '600', color: themeColors.textLight, marginBottom: 15, paddingHorizontal: 15, },
+  noPostsText: { fontSize: 15, color: themeColors.textSecondary, textAlign: 'center', marginTop: 20, },
+  postCardWrapperProfile: { marginBottom: 15, marginHorizontal: 10, borderRadius: 10, overflow: 'hidden', elevation: 3, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 2, }, headerTitle: { color: themeColors.textLight, fontSize: 22, fontWeight: 'bold', textAlign: 'center' },
 });

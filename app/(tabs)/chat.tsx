@@ -1,31 +1,30 @@
-// app/(tabs)/chat.tsx (Your Provided Code - Already Correct for SafeAreaView)
-
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Image, ActivityIndicator, Platform, StatusBar, Alert,
-  SafeAreaView // <<< CORRECTLY IMPORTED HERE
+  Image, ActivityIndicator, Platform, StatusBar,
+  SafeAreaView
 } from 'react-native';
-import { collection, query, where, onSnapshot, orderBy, Timestamp } from 'firebase/firestore';
-import { auth, db } from '../../firebaseConfig'; // Adjust path
+import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore';
+import { auth, db } from '../../firebaseConfig';
 import { useRouter, Link } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { themeColors } from '../../styles/theme'; // Adjust path
+import { themeColors } from '../../styles/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { User as FirebaseAuthUser } from 'firebase/auth';
 
-// Default avatar if user has no profile image or it fails to load
-const DEFAULT_AVATAR = require('../../assets/images/icon.png'); // ADJUST PATH if this is not your default avatar
+// <<< IMPORT YOUR REUSABLE HEADER COMPONENT >>>
+import AppHeader from '../../components/AppHeader';
 
-// Interface for a chat session displayed in the list
+// Default avatar if user has no profile image or it fails to load
+const DEFAULT_AVATAR = require('../../assets/images/icon.png');
+
 interface ChatSession {
-  id: string; // Firestore document ID of the chat
+  id: string;
   otherUserId: string;
   otherUserName: string;
   otherUserAvatar: string | null;
   lastMessageText: string | null;
-  lastMessageTimestamp: Date | null; // Converted from Firestore Timestamp
-  // unreadCount?: number; // For later
+  lastMessageTimestamp: Date | null;
 }
 
 export default function ChatListScreen() {
@@ -40,8 +39,7 @@ export default function ChatListScreen() {
     const unsubscribeAuth = auth.onAuthStateChanged(user => {
       setCurrentUser(user);
       if (!user) {
-        setChatSessions([]); // Clear chats if user logs out
-        setIsLoading(false);
+        setChatSessions([]); setIsLoading(false);
       }
     });
     return () => unsubscribeAuth();
@@ -50,32 +48,25 @@ export default function ChatListScreen() {
   // Fetch chat sessions
   useEffect(() => {
     if (!currentUser) {
-      setIsLoading(false); // Not loading if no user
-      setChatSessions([]); // Ensure chat list is empty if no user
-      return;
+      setIsLoading(false); setChatSessions([]); return;
     }
-
-    setIsLoading(true);
-    setError(null);
-
+    setIsLoading(true); setError(null);
     const chatsQuery = query(
       collection(db, "chats"),
-      where("users", "array-contains", currentUser.uid), // Chats current user is part of
-      orderBy("updatedAt", "desc") // Most recent chats first
+      where("users", "array-contains", currentUser.uid),
+      orderBy("updatedAt", "desc")
     );
-
     const unsubscribe = onSnapshot(chatsQuery, (querySnapshot) => {
       const sessions: ChatSession[] = [];
       querySnapshot.forEach((doc) => {
         const chatData = doc.data();
         const otherUserId = chatData.users.find((uid: string) => uid !== currentUser.uid);
-
         if (otherUserId) {
           sessions.push({
             id: doc.id,
             otherUserId: otherUserId,
-            otherUserName: chatData.userNames?.[otherUserId] || 'Chat User', // Use denormalized name
-            otherUserAvatar: chatData.userPhotos?.[otherUserId] || null,   // Use denormalized photo
+            otherUserName: chatData.userNames?.[otherUserId] || 'Chat User',
+            otherUserAvatar: chatData.userPhotos?.[otherUserId] || null,
             lastMessageText: chatData.lastMessage?.text || "No messages yet...",
             lastMessageTimestamp: chatData.lastMessage?.createdAt?.toDate ? chatData.lastMessage.createdAt.toDate() : null,
           });
@@ -88,40 +79,28 @@ export default function ChatListScreen() {
       setError("Failed to load your chats.");
       setIsLoading(false);
     });
-
     return () => unsubscribe();
-  }, [currentUser]); // Rerun when currentUser changes
+  }, [currentUser]);
 
-  const navigateToChatRoom = (chatId: string, otherUserName: string, otherUserAvatar: string | null) => {
-    router.push({
-      pathname: '/chatRoom', // Navigate to app/chatRoom.tsx
-      params: {
-        chatId: chatId,
-        // Optional: pass other user's info to avoid re-fetching in chatRoom header initially
-        // otherUserName: otherUserName,
-        // otherUserAvatar: otherUserAvatar
-      }
-    });
+  const navigateToChatRoom = (chatId: string) => {
+    router.push({ pathname: '/chatRoom', params: { chatId: chatId } });
   };
 
-  // Function to format timestamp for display (e.g., "3 mins ago", "Yesterday")
   const formatChatTimestamp = (date: Date | null): string => {
     if (!date) return '';
     const now = new Date();
     const diffSeconds = Math.round((now.getTime() - date.getTime()) / 1000);
+    if (diffSeconds < 60) return `${diffSeconds}s`;
     const diffMinutes = Math.round(diffSeconds / 60);
+    if (diffMinutes < 60) return `${diffMinutes}m`;
     const diffHours = Math.round(diffMinutes / 60);
+    if (diffHours < 24) return `${diffHours}h`;
     const diffDays = Math.round(diffHours / 24);
-
-    if (diffSeconds < 60) return `${diffSeconds}s ago`;
-    if (diffMinutes < 60) return `${diffMinutes}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
     if (diffDays === 1) return 'Yesterday';
-    if (diffDays < 7) return `${diffDays}d ago`;
-    return date.toLocaleDateString(); // Fallback to full date
+    return date.toLocaleDateString();
   };
 
-
+  // Loading, error, and not-logged-in states do not need the header
   if (isLoading) {
     return (
       <LinearGradient colors={themeColors.backgroundGradient} style={styles.centeredFeedback}>
@@ -130,7 +109,6 @@ export default function ChatListScreen() {
       </LinearGradient>
     );
   }
-
   if (error) {
     return (
       <LinearGradient colors={themeColors.backgroundGradient} style={styles.centeredFeedback}>
@@ -138,45 +116,49 @@ export default function ChatListScreen() {
       </LinearGradient>
     );
   }
-
   if (!currentUser) {
-      return (
-        <LinearGradient colors={themeColors.backgroundGradient} style={styles.centeredFeedback}>
-            <Text style={styles.infoText}>Please log in to see your chats.</Text>
-            <Link href="/login" asChild>
-                <TouchableOpacity style={styles.loginButton}>
-                    <Text style={styles.loginButtonText}>Login</Text>
-                </TouchableOpacity>
-            </Link>
-        </LinearGradient>
-      );
-  }
-
-  if (chatSessions.length === 0) {
     return (
       <LinearGradient colors={themeColors.backgroundGradient} style={styles.centeredFeedback}>
-        <Text style={styles.title}>Chat List</Text>
-        <Ionicons name="chatbubbles-outline" size={60} color={themeColors.textSecondary} style={{ marginVertical: 20 }}/>
-        <Text style={styles.infoText}>No conversations yet.</Text>
-        <Text style={styles.infoTextSub}>Start a chat from a user's profile!</Text>
+        <Text style={styles.infoText}>Please log in to see your chats.</Text>
+        <Link href="/login" asChild>
+          <TouchableOpacity style={styles.loginButton}><Text style={styles.loginButtonText}>Login</Text></TouchableOpacity>
+        </Link>
       </LinearGradient>
     );
   }
 
+  // "No Chats" screen now includes the header for consistency
+  if (chatSessions.length === 0) {
+    return (
+      <LinearGradient colors={themeColors.backgroundGradient} style={styles.gradientWrapper}>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.centeredFeedback}>
+            <Ionicons name="chatbubbles-outline" size={60} color={themeColors.textSecondary} style={{ marginVertical: 20 }}/>
+            <Text style={styles.infoText}>No conversations yet.</Text>
+            <Text style={styles.infoTextSub}>Start a chat from a user's profile!</Text>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+    );
+  }
+
+  // Main chat list screen with the header
   return (
     <LinearGradient colors={themeColors.backgroundGradient} style={styles.gradientWrapper}>
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.headerContainer}>
-            <Text style={styles.headerTitle}>MoodMatch Chats</Text>
-        </View>
+        {/* The new header is placed here, outside the FlatList */}
+        <AppHeader>
+          <Text style={styles.headerTitle}>Chats</Text>
+        </AppHeader>
 
         <FlatList
           data={chatSessions}
           keyExtractor={(item) => item.id}
+          contentContainerStyle={{ paddingTop: 10, paddingBottom: 10 }} // Add some padding
           renderItem={({ item }) => (
             <TouchableOpacity
               style={styles.chatItemContainer}
-              onPress={() => navigateToChatRoom(item.id, item.otherUserName, item.otherUserAvatar)}
+              onPress={() => navigateToChatRoom(item.id)}
             >
               <Image
                 source={item.otherUserAvatar ? { uri: item.otherUserAvatar } : DEFAULT_AVATAR}
@@ -188,9 +170,7 @@ export default function ChatListScreen() {
                   {item.lastMessageText}
                 </Text>
               </View>
-              <View style={styles.chatMetaContainer}>
-                <Text style={styles.timestamp}>{formatChatTimestamp(item.lastMessageTimestamp)}</Text>
-              </View>
+              <Text style={styles.timestamp}>{formatChatTimestamp(item.lastMessageTimestamp)}</Text>
             </TouchableOpacity>
           )}
           ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -202,25 +182,29 @@ export default function ChatListScreen() {
 
 const styles = StyleSheet.create({
   gradientWrapper: { flex: 1 },
-  safeArea: { flex: 1, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 },
-  headerContainer: { paddingHorizontal: 15, paddingVertical: 15, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', },
-  headerTitle: { color: themeColors.textLight, fontSize: 22, fontWeight: 'bold', },
-  centeredFeedback: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20, },
+  // <<< MODIFIED: Removed top padding as AppHeader now handles it >>>
+  safeArea: { flex: 1 },
+  // <<< REMOVED: headerContainer and headerTitle are no longer needed >>>
+  centeredFeedback: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   loadingText: { color: themeColors.textSecondary, marginTop: 10, fontSize: 16 },
   errorText: { color: themeColors.errorRed, fontSize: 16, textAlign: 'center' },
-  infoText: { color: themeColors.textSecondary, fontSize: 17, textAlign: 'center', marginBottom: 5, },
-  infoTextSub: { color: themeColors.grey, fontSize: 15, textAlign: 'center', },
-  loginButton: { backgroundColor: themeColors.pink, paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25, marginTop: 20, },
-  loginButtonText: { color: themeColors.textLight, fontSize: 16, fontWeight: 'bold', },
-  title: { fontSize: 22, fontWeight: 'bold', color: themeColors.textLight, marginBottom: 10, },
-  chatItemContainer: { flexDirection: 'row', paddingHorizontal: 15, paddingVertical: 12, alignItems: 'center', backgroundColor: themeColors.darkGrey, marginHorizontal: 10, borderRadius: 10, marginVertical: 5, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.2, shadowRadius: 1.5, },
-  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 12, backgroundColor: themeColors.grey, },
-  chatTextContainer: { flex: 1, justifyContent: 'center', },
-  userName: { color: themeColors.textLight, fontSize: 16, fontWeight: 'bold', marginBottom: 3, },
-  lastMessage: { color: themeColors.textSecondary, fontSize: 14, },
-  chatMetaContainer: { alignItems: 'flex-end', marginLeft: 10, },
-  timestamp: { color: themeColors.grey, fontSize: 12, marginBottom: 5, },
-  unreadBadge: { backgroundColor: themeColors.pink, borderRadius: 10, width: 20, height: 20, justifyContent: 'center', alignItems: 'center', },
-  unreadText: { color: themeColors.textLight, fontSize: 10, fontWeight: 'bold', },
-  separator: { height: 0, },
+  infoText: { color: themeColors.textSecondary, fontSize: 17, textAlign: 'center', marginBottom: 5 },
+  infoTextSub: { color: themeColors.grey, fontSize: 15, textAlign: 'center' },
+  loginButton: { backgroundColor: themeColors.pink, paddingVertical: 12, paddingHorizontal: 30, borderRadius: 25, marginTop: 20 },
+  loginButtonText: { color: themeColors.textLight, fontSize: 16, fontWeight: 'bold' },
+  chatItemContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 15,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)', // Subtle background
+    marginHorizontal: 10,
+    borderRadius: 12,
+  },
+  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 15, backgroundColor: themeColors.grey },
+  chatTextContainer: { flex: 1, justifyContent: 'center' },
+  userName: { color: themeColors.textLight, fontSize: 16, fontWeight: 'bold', marginBottom: 3 },
+  lastMessage: { color: themeColors.textSecondary, fontSize: 14 },
+  timestamp: { color: themeColors.grey, fontSize: 12, marginLeft: 10 },
+  separator: { height: 8 }, headerTitle: { color: themeColors.textLight, fontSize: 22, fontWeight: 'bold', textAlign: 'center' },
 });

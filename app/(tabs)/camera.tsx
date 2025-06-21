@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
   StyleSheet, Text, View, ActivityIndicator, Image, Alert,
   TouchableOpacity, Platform, Dimensions, ScrollView,
-  StatusBar
+  StatusBar, SafeAreaView
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { LinearGradient } from "expo-linear-gradient";
@@ -15,6 +15,9 @@ import { Audio } from "expo-av";
 import { httpsCallable } from "firebase/functions";
 import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+
+// Import your reusable header component
+import AppHeader from '../../components/AppHeader';
 
 // --- Interfaces ---
 interface RecommendedTrack { id: string; name: string; artists: string[]; previewUrl: string | null; spotifyUrl: string; albumImageUrl: string | null; }
@@ -250,31 +253,33 @@ export default function CameraScreen() {
 
   return (
     <LinearGradient colors={themeColors.backgroundGradient} style={styles.gradientWrapper}>
-      <View style={{ flex: 1 }}>
-        <ScrollView contentContainerStyle={styles.scrollContentContainer}>
-          <Text style={styles.title}>{screenTitle}</Text>
+      <SafeAreaView style={styles.safeArea}>
+        {/* The new header is placed here, outside the ScrollView */}
+        <AppHeader>
+          <Text style={styles.headerTitle}>{screenTitle}</Text>
+        </AppHeader>
 
+        <ScrollView contentContainerStyle={styles.scrollContentContainer}>
+          {/* The old <Text> title is removed from here */}
+
+          {/* All your original conditional rendering logic is preserved below */}
           {currentStage === "initial" && !isUploading && (
             <><View style={styles.buttonRow}><TouchableOpacity style={[styles.button, styles.pickButton]} onPress={() => pickImageFromDevice(false)}><Text style={styles.buttonText}>Gallery</Text></TouchableOpacity><TouchableOpacity style={[styles.button, styles.cameraButton]} onPress={() => pickImageFromDevice(true)}><Text style={styles.buttonText}>Camera</Text></TouchableOpacity></View><View style={[styles.imageContainer, styles.imagePlaceholder, { width: maxDisplayWidth, height: 200 }]}><Text style={styles.placeholderText}>Select or take an image</Text></View></>
           )}
           {selectedImageUri && displayWidth && displayHeight && (
             <View style={[styles.imageContainer, { width: displayWidth, height: displayHeight }]}><Image source={{ uri: selectedImageUri }} style={styles.selectedImage} resizeMode="contain"/>{isUploading && <View style={styles.imageLoadingOverlay}><ActivityIndicator size="large" color={themeColors.textLight} /><Text style={styles.progressTextOverlay}>{statusMessage}</Text></View>}</View>
           )}
-
           {error && <Text style={[styles.statusMessageText, styles.errorTextDisplay]}>{error}</Text>}
           {statusMessage && !error && !isUploading && !isProcessingSong && !isProcessingCaption && <Text style={styles.statusMessageText}>{statusMessage}</Text>}
-
           {(currentStage === 'songConfirmed' || currentStage === 'captionConfirmed' || currentStage === 'bothConfirmed') && (
             <View style={styles.chosenItemsContainer}>
               {chosenSong && <View style={styles.chosenItem}><Ionicons name="musical-notes" size={20} color={themeColors.pink} style={{marginRight: 8}}/><Text style={styles.chosenItemText} numberOfLines={1}>Song: {chosenSong.name}</Text></View>}
               {chosenCaption && <View style={styles.chosenItem}><Ionicons name="chatbubbles" size={20} color={themeColors.blue} style={{marginRight: 8}}/><Text style={styles.chosenItemText} numberOfLines={2}>Caption: {chosenCaption}</Text></View>}
             </View>
           )}
-
           {currentStage === "imageUploaded" && (
             <View style={styles.actionChoiceContainer}><TouchableOpacity style={[styles.button, styles.songButton]} onPress={navigateToPreferences}><Ionicons name="musical-notes-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}} /><Text style={styles.buttonText}>Get Songs</Text></TouchableOpacity><TouchableOpacity style={[styles.button, styles.captionButton]} onPress={initiateGetCaption}><Ionicons name="chatbubble-ellipses-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}} /><Text style={styles.buttonText}>Get Caption</Text></TouchableOpacity></View>
           )}
-
           {currentStage === "selectingPreferences" && (
             <View style={styles.resultsSection}>
               <View style={styles.preferenceGrid}>{['english','malay','chinese','tamil','korean','happy','sad','chill','romantic','energetic'].map(item => {
@@ -285,7 +290,6 @@ export default function CameraScreen() {
               </View><TouchableOpacity style={[styles.button, styles.proceedButton]} onPress={fetchRecommendationsFromAPI} disabled={isProcessingSong}><Text style={styles.buttonText}>Proceed</Text></TouchableOpacity>
             </View>
           )}
-
           {currentStage === "selectingSong" && (
             <View style={styles.resultsSection}>
               {isProcessingSong && <View style={styles.loadingFullWidth}><ActivityIndicator size="large" color={themeColors.pink} /><Text style={styles.progressText}>{statusMessage}</Text></View>}
@@ -307,7 +311,6 @@ export default function CameraScreen() {
               {!isProcessingSong && allRecommendedTracks.length === 0 && <TouchableOpacity style={[styles.buttonSmall, styles.retryButton]} onPress={navigateToPreferences}><Ionicons name="arrow-back" size={18} color={themeColors.textLight} /><Text style={styles.buttonSmallText}>Try Again</Text></TouchableOpacity>}
             </View>
           )}
-
           {currentStage === "selectingCaption" && (
             <View style={styles.resultsSection}>{isProcessingCaption && <View style={styles.loadingFullWidth}><ActivityIndicator size="large" color={themeColors.blue} /><Text style={styles.progressText}>{statusMessage}</Text></View>}
               {!isProcessingCaption && currentCaptionSuggestion && (
@@ -319,7 +322,6 @@ export default function CameraScreen() {
               )}
             </View>
           )}
-
           {(currentStage === 'songConfirmed' || currentStage === 'captionConfirmed' || currentStage === 'bothConfirmed') && (
             <View style={styles.finalActionsContainer}>
               {chosenSong ? <TouchableOpacity style={[styles.button, styles.backButton]} onPress={goBackToSongSelection}><Ionicons name="arrow-back" size={18} color={themeColors.textLight} style={{marginRight: 6}} /><Text style={styles.buttonText}>Change Song</Text></TouchableOpacity>
@@ -330,7 +332,7 @@ export default function CameraScreen() {
             </View>
           )}
         </ScrollView>
-        {/* <<< DISCARD BUTTON MOVED TO THE BOTTOM LEFT >>> */}
+
         {currentStage !== "initial" && !isUploading && (
           <View style={styles.footer}>
             <TouchableOpacity style={styles.discardButton} onPress={resetForNewImageSelection}>
@@ -339,15 +341,19 @@ export default function CameraScreen() {
             </TouchableOpacity>
           </View>
         )}
-      </View>
+      </SafeAreaView>
     </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
     gradientWrapper: { flex: 1 },
-    scrollContentContainer: { alignItems: 'center', paddingTop: Platform.OS === 'android' ? (StatusBar.currentHeight || 20) + 10 : 50, paddingBottom: 150 },
-    title: { fontSize: 24, fontWeight: '600', marginBottom: 20, color: themeColors.textLight, textAlign: 'center' },
+    safeArea: { flex: 1 },
+    // Removed top padding to let SafeAreaView and Header handle it. Added space below header.
+    scrollContentContainer: { alignItems: 'center', paddingTop: 20, paddingBottom: 150 },
+    // New style for the header title
+    headerTitle: { color: themeColors.textLight, fontSize: 22, fontWeight: 'bold' },
+    // The old `title` style is no longer needed
     buttonRow: { flexDirection: 'row', justifyContent: 'space-around', width: '90%', marginBottom: 20 },
     button: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 25, minHeight: 50, alignItems: 'center', justifyContent: 'center', flex: 1, marginHorizontal: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5, flexDirection: 'row' },
     pickButton: { backgroundColor: themeColors.pink },
@@ -395,7 +401,6 @@ const styles = StyleSheet.create({
     finalActionsContainer: { width: '90%', alignItems: 'center', gap: 10, marginVertical: 15 },
     addCaptionButton: { backgroundColor: themeColors.blue, flex: 0, paddingHorizontal: 30 },
     addSongButton: { backgroundColor: themeColors.pink, flex: 0, paddingHorizontal: 30 },
-    // <<< THE FIX: Using a base button style for consistent padding >>>
     backButton: { backgroundColor: themeColors.grey, flex: 0 },
     footer: { position: 'absolute', bottom: 20, left: 20 },
     discardButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.errorRed, paddingVertical: 10, paddingHorizontal: 15, borderRadius: 20, elevation: 5 },
