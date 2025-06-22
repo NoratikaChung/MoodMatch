@@ -1,56 +1,63 @@
-import React, { useEffect, useState, useLayoutEffect } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ActivityIndicator, ScrollView,
-  TouchableOpacity, Platform, StatusBar, Alert, SafeAreaView
+  View, Text, StyleSheet, ActivityIndicator,
+  TouchableOpacity, Alert, SafeAreaView, FlatList, TextInput,
+  KeyboardAvoidingView, Platform, Image
 } from 'react-native';
-import { useLocalSearchParams, Stack, useRouter, useNavigation } from 'expo-router';
-// <<< STEP 1: Import necessary Firestore and Auth functions >>>
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   doc, onSnapshot, deleteDoc, updateDoc, increment,
-  arrayUnion, arrayRemove
+  arrayUnion, arrayRemove, collection, addDoc, serverTimestamp, query, orderBy, getDoc
 } from 'firebase/firestore';
 import { db, auth } from '../../firebaseConfig';
 import PostCard, { Post as PostData } from '../../components/PostCard';
 import { themeColors } from '../../styles/theme';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-
-// <<< IMPORT YOUR REUSABLE HEADER COMPONENT >>>
 import AppHeader from '../../components/AppHeader';
+
+// Interface for a single comment
+interface Comment {
+  id: string;
+  text: string;
+  userId: string;
+  username: string;
+  userProfileImageUrl: string | null;
+  createdAt: any;
+}
 
 export default function PostDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
   const postId = params.id;
   const router = useRouter();
-  const navigation = useNavigation();
 
   const [post, setPost] = useState<PostData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const currentUser = auth.currentUser;
-
-  // This state will hold the dynamic title for the header
   const [headerTitle, setHeaderTitle] = useState('Loading Post...');
 
-  // This useEffect now only sets the dynamic title for the header
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [isPostingComment, setIsPostingComment] = useState(false);
+
+  const [isCommentInputVisible, setIsCommentInputVisible] = useState(false);
+  const textInputRef = useRef<TextInput>(null);
+
+  // Effect to fetch the main post data
   useEffect(() => {
     if (!postId) {
-      setError("Post ID is missing. Cannot load post.");
+      setError("Post ID is missing.");
       setIsLoading(false);
-      setHeaderTitle('Error'); // Use state for title
+      setHeaderTitle('Error');
       return;
     }
-
-    setIsLoading(true);
-    setError(null);
     const postDocRef = doc(db, "posts", postId);
-
     const unsubscribe = onSnapshot(postDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const fetchedPost = { id: docSnap.id, ...docSnap.data() } as PostData;
         setPost(fetchedPost);
         setHeaderTitle(fetchedPost.username ? `${fetchedPost.username}'s Post` : 'Post Details');
-        setError(null);
       } else {
         setError("Post not found.");
         setPost(null);
@@ -58,65 +65,82 @@ export default function PostDetailScreen() {
       }
       setIsLoading(false);
     }, (err) => {
-      console.error(`Error fetching post detail for ID ${postId}:`, err);
-      setError("Failed to load post details. Please try again.");
+      setError("Failed to load post details.");
       setIsLoading(false);
       setHeaderTitle('Error Loading');
     });
-
     return () => unsubscribe();
   }, [postId]);
 
+  // Effect to fetch comments for the post
+  useEffect(() => {
+    if (!postId) return;
+    const commentsRef = collection(db, 'posts', postId, 'comments');
+    const q = query(commentsRef, orderBy('createdAt', 'asc'));
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      const fetchedComments: Comment[] = [];
+      querySnapshot.forEach((doc) => {
+        fetchedComments.push({ id: doc.id, ...doc.data() } as Comment);
+      });
+      setComments(fetchedComments);
+    });
+    return () => unsubscribe();
+  }, [postId]);
 
-  // <<< STEP 2: Implement the real Like functionality >>>
+  // Function to handle liking a post
   const handleLikePost = async (postToUpdate: PostData) => {
-    if (!currentUser) {
-      Alert.alert("Please log in", "You must be logged in to like posts.");
-      return;
-    }
+    if (!currentUser) { Alert.alert("Please log in", "You must be logged in to like posts."); return; }
     const postRef = doc(db, 'posts', postToUpdate.id);
     const isAlreadyLiked = postToUpdate.likedBy?.includes(currentUser.uid);
     try {
-      if (isAlreadyLiked) {
-        await updateDoc(postRef, {
-          likedBy: arrayRemove(currentUser.uid),
-          likesCount: increment(-1)
-        });
-      } else {
-        await updateDoc(postRef, {
-          likedBy: arrayUnion(currentUser.uid),
-          likesCount: increment(1)
-        });
-      }
+      await updateDoc(postRef, {
+        likedBy: isAlreadyLiked ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
+        likesCount: increment(isAlreadyLiked ? -1 : 1)
+      });
     } catch (e: any) {
-      console.error("Error updating like status:", e);
       Alert.alert("Error", `Could not update like status: ${e.message}`);
     }
   };
 
-  // The rest of your original handler functions are preserved
-  const handleComment = (pId: string) => {
-    console.log(`PostCard Comment from Detail: Post ID ${pId}`);
-    Alert.alert("Comment Action", `Open comments for post ${pId}`);
-  };
-
-  const handleShare = (pId: string) => {
-    console.log(`PostCard Share from Detail: Post ID ${pId}`);
-    Alert.alert("Share Action", `Share post ${pId}`);
-  };
-
-  const handleToggleMute = (pId: string, songUrl: string | null) => {
-    console.log(`PostCard Toggle Mute from Detail: Post ID ${pId}, URL: ${songUrl}`);
-    Alert.alert("Mute/Unmute Action", `Toggle audio for post ${pId}`);
-  };
-
-  const handleDeletePostFromDetail = (pId: string) => {
-    if (currentUser?.uid !== post?.userId) {
-        Alert.alert("Permission Denied", "You can only delete your own posts.");
-        return;
+  // Function to add a new comment
+  const handleAddComment = async () => {
+    if (!currentUser) { Alert.alert("Login Required", "You must be logged in to comment."); return; }
+    if (!postId) { Alert.alert("Error", "Post ID is missing."); return; }
+    const trimmedComment = newComment.trim();
+    if (trimmedComment === '') return;
+    setIsPostingComment(true);
+    try {
+      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      const userData = userDoc.data();
+      const commentsRef = collection(db, 'posts', postId, 'comments');
+      await addDoc(commentsRef, {
+        text: trimmedComment,
+        userId: currentUser.uid,
+        username: userData?.username || 'Anonymous',
+        userProfileImageUrl: userData?.photoURL || null,
+        createdAt: serverTimestamp(),
+      });
+      const postRef = doc(db, 'posts', postId);
+      await updateDoc(postRef, { commentsCount: increment(1) });
+      setNewComment('');
+    } catch (e: any) {
+      Alert.alert("Error", "Could not post your comment.");
+    } finally {
+      setIsPostingComment(false);
     }
-    Alert.alert(
-      "Delete Post", "Are you sure you want to delete this post?",
+  };
+
+  // Function to show and focus the comment input
+  const handleCommentPress = () => {
+    setIsCommentInputVisible(true);
+    setTimeout(() => textInputRef.current?.focus(), 100);
+  };
+
+  // Other post action handlers from your original code
+  const handleShare = (pId: string) => Alert.alert("Share Action", `Share post ${pId}`);
+  const handleDeletePostFromDetail = (pId: string) => {
+    if (currentUser?.uid !== post?.userId) { Alert.alert("Permission Denied", "You can only delete your own posts."); return; }
+    Alert.alert( "Delete Post", "Are you sure you want to delete this post?",
       [
         { text: "Cancel", style: "cancel" },
         { text: "Delete", style: "destructive",
@@ -125,83 +149,95 @@ export default function PostDetailScreen() {
               await deleteDoc(doc(db, "posts", pId));
               Alert.alert("Post Deleted", "This post has been removed.");
               router.back();
-            } catch (e: any) {
-              Alert.alert("Error", "Could not delete post.");
-              console.error("Error deleting post from detail:", e);
-            }
+            } catch (e: any) { Alert.alert("Error", "Could not delete post."); }
           },
         },
-      ],
-      { cancelable: true }
+      ]
     );
   };
-
-  const handleHidePostFromDetail = (pId: string) => {
-    Alert.alert("Hide Post", `Hide post ${pId} (Functionality to be implemented).`);
-  };
-
   const handleUsernamePress = (userIdOfPostAuthor: string) => {
     if (!userIdOfPostAuthor) return;
-    if (userIdOfPostAuthor === currentUser?.uid) {
-      router.push('/(tabs)/profile');
-    } else {
-      router.push({
-        pathname: '/userProfile',
-        params: { userId: userIdOfPostAuthor },
-      });
-    }
+    if (userIdOfPostAuthor === currentUser?.uid) { router.push('/(tabs)/profile'); }
+    else { router.push({ pathname: '/userProfile', params: { userId: userIdOfPostAuthor } }); }
   };
 
-  // Your original loading state rendering is preserved
+  // Component to render each comment item
+  const renderCommentItem = ({ item }: { item: Comment }) => (
+    <View style={styles.commentContainer}>
+      <TouchableOpacity onPress={() => handleUsernamePress(item.userId)}>
+        <Image source={item.userProfileImageUrl ? { uri: item.userProfileImageUrl } : require('../../assets/images/icon.png')} style={styles.commentAvatar}/>
+      </TouchableOpacity>
+      <View style={styles.commentTextContainer}>
+        <Text style={styles.commentTextWrapper}>
+          <Text style={styles.commentUsername} onPress={() => handleUsernamePress(item.userId)}>{item.username} </Text>
+          <Text style={styles.commentText}>{item.text}</Text>
+        </Text>
+      </View>
+    </View>
+  );
+
   if (isLoading) {
-    return (
-      <LinearGradient colors={themeColors.backgroundGradient} style={styles.centeredFeedback}>
-        <ActivityIndicator size="large" color={themeColors.pink} />
-      </LinearGradient>
-    );
+    return <LinearGradient colors={themeColors.backgroundGradient} style={styles.centeredFeedback}><ActivityIndicator size="large" color={themeColors.pink} /></LinearGradient>;
   }
 
-  // <<< THE UI IS UPDATED HERE >>>
   return (
     <LinearGradient colors={themeColors.backgroundGradient} style={styles.gradientWrapper}>
       <SafeAreaView style={styles.safeArea}>
-        {/* We now use the AppHeader component instead of Stack.Screen */}
         <AppHeader>
           <View style={styles.headerContent}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.headerIcon}>
-              <Ionicons name="arrow-back" size={24} color={themeColors.textLight} />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>{headerTitle}</Text>
-            <View style={styles.headerIcon} />{/* Spacer to keep title centered */}
+            <TouchableOpacity onPress={() => router.back()} style={styles.headerIcon}><Ionicons name="arrow-back" size={24} color={themeColors.textLight} /></TouchableOpacity>
+            <Text style={styles.headerTitle} numberOfLines={1}>{headerTitle}</Text>
+            <View style={styles.headerIcon} />
           </View>
         </AppHeader>
 
-        {error || !post ? (
-          // This view handles both error and post-not-found states
-          <View style={styles.centeredFeedback}>
-            <Text style={styles.errorText}>{error || "Post not available."}</Text>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <Text style={styles.backButtonText}>Go Back</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          // This view renders the actual post
-          <ScrollView contentContainerStyle={styles.scrollContainer}>
-            <PostCard
-              post={post}
-              currentUserId={currentUser?.uid}
-              showMenu={post.userId === currentUser?.uid}
-              onDeletePost={handleDeletePostFromDetail}
-              onHidePost={handleHidePostFromDetail}
-              onPressLike={handleLikePost} // <<< Use the real like function
-              onPressUsername={handleUsernamePress}
-              onPressComment={handleComment}
-              onPressShare={handleShare}
-              onToggleMute={handleToggleMute}
-            />
-            <View style={{height: 40}} />
-          </ScrollView>
-        )}
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"} keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}>
+          {error || !post ? (
+            <View style={styles.centeredFeedback}>
+              <Text style={styles.errorText}>{error || "Post not available."}</Text>
+              <TouchableOpacity onPress={() => router.back()} style={styles.backButton}><Text style={styles.backButtonText}>Go Back</Text></TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              <FlatList
+                ListHeaderComponent={
+                  <PostCard
+                    post={post}
+                    currentUserId={currentUser?.uid}
+                    showMenu={post.userId === currentUser?.uid}
+                    onDeletePost={handleDeletePostFromDetail}
+                    onPressLike={handleLikePost}
+                    onPressUsername={handleUsernamePress}
+                    onPressShare={handleShare}
+                    onPressComment={handleCommentPress}
+                  />
+                }
+                data={comments}
+                renderItem={renderCommentItem}
+                keyExtractor={(item) => item.id}
+                ListFooterComponent={ <View style={{ height: 20 }} /> }
+                contentContainerStyle={styles.scrollContainer}
+              />
+
+              {isCommentInputVisible && (
+                <View style={styles.commentInputContainer}>
+                  <TextInput
+                    ref={textInputRef}
+                    style={styles.input}
+                    placeholder="Add a comment..."
+                    placeholderTextColor={themeColors.textSecondary}
+                    value={newComment}
+                    onChangeText={setNewComment}
+                    onBlur={() => setIsCommentInputVisible(false)}
+                  />
+                  <TouchableOpacity onPress={handleAddComment} disabled={isPostingComment || newComment.trim() === ''}>
+                    <Text style={[styles.postButtonText, (isPostingComment || newComment.trim() === '') && styles.postButtonDisabled]}>Post</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
+          )}
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -209,15 +245,24 @@ export default function PostDetailScreen() {
 
 const styles = StyleSheet.create({
   gradientWrapper: { flex: 1 },
-  safeArea: { flex: 1 }, // Added for new structure
-  scrollContainer: { paddingBottom: 20 },
+  safeArea: { flex: 1 },
+  scrollContainer: { paddingBottom: 10 },
   centeredFeedback: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   errorText: { color: themeColors.errorRed, fontSize: 18, textAlign: 'center', marginBottom: 20 },
-  infoText: { color: themeColors.textSecondary, fontSize: 18, textAlign: 'center', marginBottom: 20 }, // Preserved from your original code
+  infoText: { color: themeColors.textSecondary, fontSize: 15 },
   backButton: { marginTop: 20, paddingVertical: 10, paddingHorizontal: 25, backgroundColor: themeColors.pink, borderRadius: 8 },
   backButtonText: { color: themeColors.textLight, fontSize: 16, fontWeight: 'bold' },
-  // --- NEW STYLES for the custom header ---
   headerContent: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', width: '100%' },
   headerTitle: { color: themeColors.textLight, fontSize: 18, fontWeight: 'bold', flex: 1, textAlign: 'center', marginHorizontal: 10 },
-  headerIcon: { padding: 5, width: 40 },
+  headerIcon: { padding: 5, width: 40, alignItems: 'center' },
+  commentInputContainer: { flexDirection: 'row', alignItems: 'center', padding: 10, borderTopWidth: 1, borderTopColor: themeColors.grey, backgroundColor: themeColors.backgroundGradient[1] },
+  input: { flex: 1, height: 40, backgroundColor: themeColors.darkGrey, borderRadius: 20, paddingHorizontal: 15, color: themeColors.textLight, marginRight: 10 },
+  postButtonText: { color: themeColors.pink, fontWeight: 'bold', fontSize: 16 },
+  postButtonDisabled: { color: themeColors.textSecondary },
+  commentContainer: { flexDirection: 'row', paddingHorizontal: 12, paddingVertical: 8, alignItems: 'flex-start' },
+  commentAvatar: { width: 32, height: 32, borderRadius: 16, marginRight: 12, marginTop: 2 },
+  commentTextContainer: { flex: 1, justifyContent: 'center' },
+  commentTextWrapper: { flexDirection: 'row', flexWrap: 'wrap' },
+  commentUsername: { fontWeight: 'bold', color: themeColors.textLight, fontSize: 14 },
+  commentText: { color: themeColors.textLight, fontSize: 14, lineHeight: 19 },
 });
