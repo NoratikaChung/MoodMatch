@@ -1,32 +1,25 @@
-// app/components/PostCard.tsx (Full Code with Aspect Ratio Image Display)
-
 import React from 'react';
 import { View, Text, Image, TouchableOpacity, StyleSheet, Dimensions, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { themeColors } from '../styles/theme'; // Adjust path if your theme is elsewhere
+import { themeColors } from '../styles/theme';
 import { Menu, MenuOptions, MenuOption, MenuTrigger } from 'react-native-popup-menu';
 
-// Default placeholder images - ADJUST PATHS AS NEEDED
 const DEFAULT_AVATAR = require('../assets/images/icon.png');
 const DEFAULT_ALBUM_ART = require('../assets/images/icon.png');
 
+// --- INTERFACE UPDATED ---
 export interface Post {
   id: string;
   userId: string;
   username: string;
   userProfileImageUrl: string | null;
   imageUrl: string;
-  imageWidth?: number;   // Original width of the uploaded image
-  imageHeight?: number;  // Original height of the uploaded image
+  imageWidth?: number;
+  imageHeight?: number;
   caption: string | null;
-  song: {
-    id: string;
-    name: string;
-    artists: string[];
-    albumImageUrl: string | null;
-    previewUrl: string | null;
-  } | null;
-  createdAt: any; // Firestore Timestamp
+  song: { id: string; name: string; artists: string[]; albumImageUrl: string | null; previewUrl: string | null; } | null;
+  createdAt: any;
+  // These fields are now officially part of the Post type
   likesCount?: number;
   likedBy?: string[];
   commentsCount?: number;
@@ -37,7 +30,8 @@ export interface PostCardProps {
   currentUserId?: string | null;
   onPressPost?: (postId: string) => void;
   onPressUsername?: (userId: string) => void;
-  onPressLike?: (postId: string, isLiked: boolean) => void;
+  // Pass the full post object for convenience
+  onPressLike?: (post: Post) => void;
   onPressComment?: (postId: string) => void;
   onPressShare?: (postId: string) => void;
   onToggleMute?: (postId: string, songUrl: string | null) => void;
@@ -63,25 +57,25 @@ const PostCard: React.FC<PostCardProps> = ({
   onDeletePost,
   onHidePost
 }) => {
-
+  // Your optimistic UI state for liking is perfect.
   const [isLikedByCurrentUser, setIsLikedByCurrentUser] = React.useState(
     !!(post.likedBy && currentUserId && post.likedBy.includes(currentUserId))
   );
 
+  // This effect correctly syncs the like state.
   React.useEffect(() => {
     setIsLikedByCurrentUser(!!(post.likedBy && currentUserId && post.likedBy.includes(currentUserId)));
   }, [post.likedBy, currentUserId]);
 
-
   const handleLikePress = () => {
-    const newLikedStatus = !isLikedByCurrentUser;
-    setIsLikedByCurrentUser(newLikedStatus); // Optimistic UI update
+    // Optimistically update the UI.
+    setIsLikedByCurrentUser(!isLikedByCurrentUser);
     if (onPressLike) {
-      onPressLike(post.id, newLikedStatus);
+      onPressLike(post);
     }
   };
 
-  // --- PostCard Header ---
+  // --- PostCard Header (Original logic preserved) ---
   const renderHeader = () => (
     <View style={styles.headerContainer}>
       <TouchableOpacity
@@ -97,7 +91,6 @@ const PostCard: React.FC<PostCardProps> = ({
         <TouchableOpacity onPress={() => onPressUsername && onPressUsername(post.userId)}>
           <Text style={styles.usernameText}>{post.username || 'User'}</Text>
         </TouchableOpacity>
-        {/* TODO: <Text style={styles.timestampText}>{formatTimestamp(post.createdAt)}</Text> */}
       </View>
       {showMenu && post.userId === currentUserId && (
         <Menu style={styles.postCardMenuTrigger}>
@@ -124,30 +117,22 @@ const PostCard: React.FC<PostCardProps> = ({
     </View>
   );
 
-  // --- Main Image ---
+  // --- Main Image (Original logic preserved) ---
   const renderImage = () => {
     const screenWidth = Dimensions.get('window').width;
-    let displayImageWidth = screenWidth; // Image will try to take full screen width
+    let displayImageWidth = screenWidth;
     let displayImageHeight: number;
 
     if (post.imageWidth && post.imageHeight && post.imageWidth > 0 && post.imageHeight > 0) {
       const originalAspectRatio = post.imageHeight / post.imageWidth;
       displayImageHeight = displayImageWidth * originalAspectRatio;
-
-      // Optional: Maximum height constraint (e.g., 70% of screen height)
       const maxAllowedImageHeight = Dimensions.get('window').height * 0.70;
-
       if (displayImageHeight > maxAllowedImageHeight) {
         displayImageHeight = maxAllowedImageHeight;
-        // If height is capped, recalculate width to maintain aspect ratio
         displayImageWidth = displayImageHeight / originalAspectRatio;
       }
     } else {
-      // Fallback if original dimensions are not available in Firestore for this post
-      // Default to a common aspect ratio, e.g., 4:5 portrait or 1:1 square
-      console.warn(`Post ${post.id} is missing image dimensions in Firestore. Using fallback aspect ratio 4:5.`);
-      displayImageHeight = displayImageWidth * (5 / 4); // Portrait 4:5
-      // For square: displayImageHeight = displayImageWidth;
+      displayImageHeight = displayImageWidth * (5 / 4);
     }
 
     return (
@@ -157,62 +142,13 @@ const PostCard: React.FC<PostCardProps> = ({
       >
         <Image
           source={{ uri: post.imageUrl }}
-          style={{
-            width: displayImageWidth,
-            height: displayImageHeight,
-            alignSelf: 'center', // Center if width is less than screen width (due to max height constraint)
-          }}
-          resizeMode="cover" // 'cover' works well when aspect ratio is maintained by width/height
+          style={{ width: displayImageWidth, height: displayImageHeight, alignSelf: 'center' }}
         />
       </TouchableOpacity>
     );
   };
 
-
-  // --- Action Bar ---
-  const renderActionBar = () => (
-    <View style={styles.actionBarContainer}>
-      <View style={styles.actionIconsLeft}>
-        <TouchableOpacity style={styles.actionButton} onPress={handleLikePress}>
-          <Ionicons name={isLikedByCurrentUser ? "heart" : "heart-outline"} size={28} color={isLikedByCurrentUser ? themeColors.pink : themeColors.textSecondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton} onPress={() => onPressComment && onPressComment(post.id)}>
-          <Ionicons name="chatbubble-outline" size={28} color={themeColors.textSecondary} />
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton} onPress={() => onPressShare && onPressShare(post.id)}>
-          <Ionicons name="paper-plane-outline" size={28} color={themeColors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-      {/* Optional Bookmark Icon
-      <TouchableOpacity style={styles.actionButton}>
-        <Ionicons name="bookmark-outline" size={28} color={themeColors.textSecondary} />
-      </TouchableOpacity>
-      */}
-    </View>
-  );
-
-  // --- Likes, Caption ---
-  const renderPostDetails = () => (
-    <View style={styles.detailsContainer}>
-      {post.likesCount !== undefined && post.likesCount > 0 && (
-        <Text style={styles.likesText}>{post.likesCount === 1 ? '1 like' : `${post.likesCount} likes`}</Text>
-      )}
-      {post.caption && (
-        <View style={styles.captionWrapper}>
-          <Text style={styles.captionText} numberOfLines={2}>
-            <Text style={styles.usernameInCaption} onPress={() => onPressUsername && onPressUsername(post.userId)}>
-              {post.username}{" "}
-            </Text>
-            {post.caption}
-          </Text>
-        </View>
-      )}
-      {/* TODO: "View all X comments" link */}
-      {/* TODO: Formatted timestamp */}
-    </View>
-  );
-
-  // --- Song Info ---
+  // --- Song Info (Original logic preserved) ---
   const renderSongInfo = () => (
     post.song && (
         <View style={styles.songInfoContainer}>
@@ -232,6 +168,56 @@ const PostCard: React.FC<PostCardProps> = ({
             )}
         </View>
     )
+  );
+
+  // --- Action Bar (UPDATED with Like and Comment UI) ---
+  const renderActionBar = () => (
+    <View style={styles.actionBarContainer}>
+      <View style={styles.actionIconsLeft}>
+        <TouchableOpacity style={styles.actionButton} onPress={handleLikePress}>
+          <Ionicons name={isLikedByCurrentUser ? "heart" : "heart-outline"} size={28} color={isLikedByCurrentUser ? themeColors.pink : themeColors.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionButton} onPress={() => onPressComment && onPressComment(post.id)}>
+          <Ionicons name="chatbubble-outline" size={28} color={themeColors.textSecondary} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.actionButton} onPress={() => onPressShare && onPressShare(post.id)}>
+          <Ionicons name="paper-plane-outline" size={28} color={themeColors.textSecondary} />
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  // --- Likes, Caption (UPDATED with Like and Comment Count display) ---
+  const renderPostDetails = () => (
+    <View style={styles.detailsContainer}>
+      {/* Display likes count */}
+      {(post.likesCount ?? 0) > 0 && (
+        <Text style={styles.likesText}>
+          {post.likesCount} {post.likesCount === 1 ? 'like' : 'likes'}
+        </Text>
+      )}
+
+      {/* Display caption */}
+      {post.caption && (
+        <View style={styles.captionWrapper}>
+          <Text style={styles.captionText} numberOfLines={2}>
+            <Text style={styles.usernameInCaption} onPress={() => onPressUsername && onPressUsername(post.userId)}>
+              {post.username}{" "}
+            </Text>
+            {post.caption}
+          </Text>
+        </View>
+      )}
+
+      {/* Display comments count */}
+      {(post.commentsCount ?? 0) > 0 && (
+        <TouchableOpacity onPress={() => onPressComment && onPressComment(post.id)}>
+          <Text style={styles.viewCommentsText}>
+            View all {post.commentsCount} {post.commentsCount === 1 ? 'comment' : 'comments'}
+          </Text>
+        </TouchableOpacity>
+      )}
+    </View>
   );
 
   return (
@@ -255,46 +241,32 @@ const menuOptionsStylesCard = {
 };
 
 const styles = StyleSheet.create({
-  cardContainer: {
-    backgroundColor: themeColors.darkGrey,
-    // width: Dimensions.get('window').width, // The parent FlatList item wrapper should handle width
-  },
-  headerContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, },
-  avatarContainer: { marginRight: 10, },
+  cardContainer: { backgroundColor: themeColors.darkGrey },
+  headerContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10 },
+  avatarContainer: { marginRight: 10 },
   avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: themeColors.grey },
-  usernameTimestampContainer: { flex: 1, },
-  usernameText: { color: themeColors.textLight, fontWeight: 'bold', fontSize: 14, },
-  timestampText: { color: themeColors.textSecondary, fontSize: 12, },
-  postCardMenuTrigger: { marginLeft: 'auto', padding: 5, },
-  menuOptionCard: { paddingVertical: 10, paddingHorizontal: 12, },
-  menuOptionTextCard: { fontSize: 15, color: themeColors.textLight, },
-  deleteOptionTextCard: { color: themeColors.errorRed, },
-  menuSeparatorCard: { height: StyleSheet.hairlineWidth, backgroundColor: themeColors.grey, },
-
-  // No fixed styles for postImage here; it's dynamic in renderImage()
-
-  songInfoContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(0,0,0,0.2)', },
+  usernameTimestampContainer: { flex: 1 },
+  usernameText: { color: themeColors.textLight, fontWeight: 'bold', fontSize: 14 },
+  postCardMenuTrigger: { marginLeft: 'auto', padding: 5 },
+  menuOptionCard: { paddingVertical: 10, paddingHorizontal: 12 },
+  menuOptionTextCard: { fontSize: 15, color: themeColors.textLight },
+  deleteOptionTextCard: { color: themeColors.errorRed },
+  menuSeparatorCard: { height: StyleSheet.hairlineWidth, backgroundColor: themeColors.grey },
+  songInfoContainer: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(0,0,0,0.2)' },
   songAlbumArt: { width: 30, height: 30, borderRadius: 3, marginRight: 8, backgroundColor: themeColors.grey },
-  songTextInfo: { flex: 1, },
-  songName: { color: themeColors.textLight, fontSize: 13, fontWeight: '500', },
-  songArtists: { color: themeColors.textSecondary, fontSize: 12, },
-  muteButton: { padding: 5, },
-  actionBarContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 10, },
-  actionIconsLeft: { flexDirection: 'row', alignItems: 'center', },
-  actionButton: { paddingHorizontal: 8, },
-  detailsContainer: { paddingHorizontal: 12, paddingBottom: 10, paddingTop: 5 },
-  likesText: { color: themeColors.textLight, fontWeight: 'bold', fontSize: 14, marginBottom: 5, },
+  songTextInfo: { flex: 1 },
+  songName: { color: themeColors.textLight, fontSize: 13, fontWeight: '500' },
+  songArtists: { color: themeColors.textSecondary, fontSize: 12 },
+  muteButton: { padding: 5 },
+  actionBarContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4, paddingVertical: 10 },
+  actionIconsLeft: { flexDirection: 'row', alignItems: 'center' },
+  actionButton: { paddingHorizontal: 8 },
+  detailsContainer: { paddingHorizontal: 12, paddingBottom: 12, paddingTop: 0 },
+  likesText: { color: themeColors.textLight, fontWeight: 'bold', fontSize: 14, marginBottom: 8 },
   captionWrapper: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center' },
-  usernameInCaption: { color: themeColors.textLight, fontWeight: 'bold', fontSize: 14, marginRight: 5, },
-  captionText: { color: themeColors.textLight, fontSize: 14, lineHeight: 19, },
-  viewCommentsText: { color: themeColors.textSecondary, fontSize: 14, marginTop: 5, },
-  postImagePlaceholder: { // For when Image.getSize is loading (if you use that option)
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: themeColors.darkGrey,
-    width: '100%', // Or Dimensions.get('window').width
-    // height: Dimensions.get('window').width * 0.75, // Example placeholder height
-  }
+  usernameInCaption: { color: themeColors.textLight, fontWeight: 'bold', fontSize: 14, marginRight: 5 },
+  captionText: { color: themeColors.textLight, fontSize: 14, lineHeight: 19 },
+  viewCommentsText: { color: themeColors.textSecondary, fontSize: 14, marginTop: 5 },
 });
 
 export default PostCard;

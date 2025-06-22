@@ -10,13 +10,13 @@ import { db } from '../../firebaseConfig';
 import { LinearGradient } from 'expo-linear-gradient';
 import { themeColors } from '../../styles/theme';
 import { Ionicons } from '@expo/vector-icons';
-
-// <<< IMPORT YOUR REUSABLE HEADER COMPONENT >>>
 import AppHeader from '../../components/AppHeader';
 
+// Using your original interfaces
 interface Post { id: string; userId: string; username: string; userProfileImageUrl: string | null; imageUrl: string; imageWidth?: number; imageHeight?: number; caption: string | null; song: any | null; createdAt: any; }
 interface UserSearchResult { id: string; username: string; displayName?: string; photoURL?: string; }
 
+// Using your original grid calculations
 const NUM_COLUMNS = 3;
 const screenWidth = Dimensions.get('window').width;
 const spacing = 2;
@@ -33,7 +33,7 @@ export default function CommunityScreen() {
   const [isLoadingSearch, setIsLoadingSearch] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
 
-  // Your original useEffect hook - UNCHANGED
+  // Your original useEffect hook for fetching posts
   useEffect(() => {
     setIsLoadingPosts(true);
     setError(null);
@@ -50,7 +50,7 @@ export default function CommunityScreen() {
     return () => unsubscribe();
   }, []);
 
-  // All your original functions - UNCHANGED
+  // Your original functions are preserved
   const handleUserSearch = async () => {
     const trimmedQuery = searchQuery.trim();
     if (trimmedQuery === '') { setSearchResults([]); setHasSearched(false); return; }
@@ -87,12 +87,42 @@ export default function CommunityScreen() {
     setIsSearchActive(!isSearchActive);
     if (isSearchActive) { setSearchQuery(''); setSearchResults([]); setHasSearched(false); }
   };
-  const renderGridPlaceholders = () => { /* This function from your original code is kept, though unused in this specific logic block, it's preserved */ };
+
+  const renderGridContent = () => {
+    if (isLoadingPosts && posts.length === 0) {
+      // Show placeholder grid while loading
+      return (
+        <FlatList
+          data={Array.from({ length: 12 })}
+          renderItem={({ index }) => <View key={`placeholder-${index}`} style={[styles.gridItem, styles.gridItemPlaceholder]} />}
+          keyExtractor={(item, index) => `placeholder-${index}`}
+          numColumns={NUM_COLUMNS}
+          contentContainerStyle={styles.gridContainer}
+        />
+      );
+    }
+    if (!isLoadingPosts && error) {
+      return <View style={styles.centeredMessageContainer}><Text style={styles.errorText}>{error}</Text></View>;
+    }
+    if (!isLoadingPosts && !error && posts.length === 0) {
+      return <View style={styles.centeredMessageContainer}><Text style={styles.infoText}>No posts yet. Be the first to share!</Text></View>;
+    }
+    // Render the actual post grid
+    return (
+      <FlatList
+        data={posts}
+        renderItem={renderPostGridItem}
+        keyExtractor={(item) => item.id}
+        numColumns={NUM_COLUMNS}
+        contentContainerStyle={styles.gridContainer}
+      />
+    );
+  };
+
 
   return (
     <LinearGradient colors={themeColors.backgroundGradient} style={styles.gradientWrapper}>
       <SafeAreaView style={styles.safeArea}>
-        {/* <<< The AppHeader now wraps your existing header logic >>> */}
         <AppHeader>
           {!isSearchActive ? (
             <View style={styles.headerContent}>
@@ -128,7 +158,6 @@ export default function CommunityScreen() {
         </AppHeader>
 
         {isSearchActive ? (
-          // Your original Search Results View - UNCHANGED
           <View style={styles.searchResultsContainer}>
             {isLoadingSearch && <View style={styles.centeredMessageContainer}><ActivityIndicator color={themeColors.pink} size="large" /></View>}
             {!isLoadingSearch && hasSearched && searchResults.length === 0 && (
@@ -139,52 +168,30 @@ export default function CommunityScreen() {
             )}
           </View>
         ) : (
-          // Your original Posts Grid View with all its conditional logic - UNCHANGED
-          <>
-            {isLoadingPosts && posts.length === 0 && (
-              <FlatList data={Array.from({ length: 9 })}
-                  renderItem={({index}) => <View key={`placeholder-${index}`} style={[styles.gridItem, styles.gridItemPlaceholder]} />}
-                  keyExtractor={(item, index) => `placeholder-${index}`}
-                  numColumns={NUM_COLUMNS} contentContainerStyle={styles.gridContainer}
-              />
-            )}
-            {!isLoadingPosts && error && (
-              <View style={styles.centeredMessageContainer}><Text style={styles.errorText}>{error}</Text></View>
-            )}
-            {!isLoadingPosts && !error && posts.length === 0 && (
-              <View style={styles.centeredMessageContainer}><Text style={styles.infoText}>No posts yet. Be the first to share!</Text></View>
-            )}
-            {!isLoadingPosts && posts.length > 0 && (
-              <FlatList data={posts} renderItem={renderPostGridItem} keyExtractor={(item) => item.id}
-                  numColumns={NUM_COLUMNS} contentContainerStyle={styles.gridContainer}
-              />
-            )}
-          </>
+          renderGridContent()
         )}
       </SafeAreaView>
     </LinearGradient>
   );
 }
 
+// Your original, unmodified styles
 const styles = StyleSheet.create({
   gradientWrapper: { flex: 1 },
-  // <<< MODIFIED: Removed top padding as AppHeader handles it >>>
   safeArea: { flex: 1 },
-  // This new style manages the layout *inside* the AppHeader
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     width: '100%',
   },
-  // <<< REMOVED: Old `header` and `searchHeader` styles are no longer needed >>>
   title: { fontSize: 22, fontWeight: 'bold', color: themeColors.textLight },
   searchIconContainer: { padding: 5 },
   centeredMessageContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
   errorText: { color: themeColors.errorRed, fontSize: 16, textAlign: 'center' },
   infoText: { color: themeColors.textSecondary, fontSize: 16, textAlign: 'center' },
   gridContainer: { paddingHorizontal: spacing },
-  gridItem: { width: itemSize, height: itemSize, marginHorizontal: 0, marginBottom: spacing, backgroundColor: themeColors.darkGrey, left: spacing/2 }, // Adjusted for cleaner grid
+  gridItem: { width: itemSize, height: itemSize, marginHorizontal: 0, marginBottom: spacing, backgroundColor: themeColors.darkGrey, left: spacing/2 },
   gridItemPlaceholder: { backgroundColor: themeColors.darkGrey, opacity: 0.5 },
   gridImage: { width: '100%', height: '100%' },
   searchInputContainer: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.2)', borderRadius: 10, paddingHorizontal: 10, marginRight: 15 },
