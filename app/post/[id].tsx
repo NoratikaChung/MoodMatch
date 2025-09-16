@@ -16,15 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import AppHeader from '../../components/AppHeader';
 
-// Interface for a single comment
-interface Comment {
-  id: string;
-  text: string;
-  userId: string;
-  username: string;
-  userProfileImageUrl: string | null;
-  createdAt: any;
-}
+interface Comment { id: string; text: string; userId: string; username: string; userProfileImageUrl: string | null; createdAt: any; }
 
 export default function PostDetailScreen() {
   const params = useLocalSearchParams<{ id?: string }>();
@@ -36,21 +28,15 @@ export default function PostDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const currentUser = auth.currentUser;
   const [headerTitle, setHeaderTitle] = useState('Loading Post...');
-
   const [comments, setComments] = useState<Comment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [isPostingComment, setIsPostingComment] = useState(false);
-
   const [isCommentInputVisible, setIsCommentInputVisible] = useState(false);
   const textInputRef = useRef<TextInput>(null);
 
-  // Effect to fetch the main post data
   useEffect(() => {
     if (!postId) {
-      setError("Post ID is missing.");
-      setIsLoading(false);
-      setHeaderTitle('Error');
-      return;
+      setError("Post ID is missing."); setIsLoading(false); setHeaderTitle('Error'); return;
     }
     const postDocRef = doc(db, "posts", postId);
     const unsubscribe = onSnapshot(postDocRef, (docSnap) => {
@@ -59,37 +45,27 @@ export default function PostDetailScreen() {
         setPost(fetchedPost);
         setHeaderTitle(fetchedPost.username ? `${fetchedPost.username}'s Post` : 'Post Details');
       } else {
-        setError("Post not found.");
-        setPost(null);
-        setHeaderTitle('Post Not Found');
+        setError("Post not found."); setPost(null); setHeaderTitle('Post Not Found');
       }
       setIsLoading(false);
-    }, (err) => {
-      setError("Failed to load post details.");
-      setIsLoading(false);
-      setHeaderTitle('Error Loading');
     });
     return () => unsubscribe();
   }, [postId]);
 
-  // Effect to fetch comments for the post
   useEffect(() => {
     if (!postId) return;
     const commentsRef = collection(db, 'posts', postId, 'comments');
     const q = query(commentsRef, orderBy('createdAt', 'asc'));
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const fetchedComments: Comment[] = [];
-      querySnapshot.forEach((doc) => {
-        fetchedComments.push({ id: doc.id, ...doc.data() } as Comment);
-      });
+      querySnapshot.forEach((doc) => { fetchedComments.push({ id: doc.id, ...doc.data() } as Comment); });
       setComments(fetchedComments);
     });
     return () => unsubscribe();
   }, [postId]);
 
-  // Function to handle liking a post
   const handleLikePost = async (postToUpdate: PostData) => {
-    if (!currentUser) { Alert.alert("Please log in", "You must be logged in to like posts."); return; }
+    if (!currentUser) { Alert.alert("Login Required"); return; }
     const postRef = doc(db, 'posts', postToUpdate.id);
     const isAlreadyLiked = postToUpdate.likedBy?.includes(currentUser.uid);
     try {
@@ -97,15 +73,11 @@ export default function PostDetailScreen() {
         likedBy: isAlreadyLiked ? arrayRemove(currentUser.uid) : arrayUnion(currentUser.uid),
         likesCount: increment(isAlreadyLiked ? -1 : 1)
       });
-    } catch (e: any) {
-      Alert.alert("Error", `Could not update like status: ${e.message}`);
-    }
+    } catch (e: any) { Alert.alert("Error", `Could not update like status: ${e.message}`); }
   };
 
-  // Function to add a new comment
   const handleAddComment = async () => {
-    if (!currentUser) { Alert.alert("Login Required", "You must be logged in to comment."); return; }
-    if (!postId) { Alert.alert("Error", "Post ID is missing."); return; }
+    if (!currentUser || !postId) { Alert.alert("Error", "Cannot post comment."); return; }
     const trimmedComment = newComment.trim();
     if (trimmedComment === '') return;
     setIsPostingComment(true);
@@ -114,42 +86,23 @@ export default function PostDetailScreen() {
       const userData = userDoc.data();
       const commentsRef = collection(db, 'posts', postId, 'comments');
       await addDoc(commentsRef, {
-        text: trimmedComment,
-        userId: currentUser.uid,
-        username: userData?.username || 'Anonymous',
-        userProfileImageUrl: userData?.photoURL || null,
-        createdAt: serverTimestamp(),
+        text: trimmedComment, userId: currentUser.uid, username: userData?.username || 'Anonymous',
+        userProfileImageUrl: userData?.photoURL || null, createdAt: serverTimestamp(),
       });
       const postRef = doc(db, 'posts', postId);
       await updateDoc(postRef, { commentsCount: increment(1) });
       setNewComment('');
-    } catch (e: any) {
-      Alert.alert("Error", "Could not post your comment.");
-    } finally {
-      setIsPostingComment(false);
-    }
+    } catch (e: any) { Alert.alert("Error", "Could not post your comment.");
+    } finally { setIsPostingComment(false); }
   };
 
-  // Function to show and focus the comment input
-  const handleCommentPress = () => {
-    setIsCommentInputVisible(true);
-    setTimeout(() => textInputRef.current?.focus(), 100);
-  };
-
-  // Other post action handlers from your original code
+  const handleCommentPress = () => { setIsCommentInputVisible(true); setTimeout(() => textInputRef.current?.focus(), 100); };
   const handleShare = (pId: string) => Alert.alert("Share Action", `Share post ${pId}`);
   const handleDeletePostFromDetail = (pId: string) => {
-    if (currentUser?.uid !== post?.userId) { Alert.alert("Permission Denied", "You can only delete your own posts."); return; }
-    Alert.alert( "Delete Post", "Are you sure you want to delete this post?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteDoc(doc(db, "posts", pId));
-              Alert.alert("Post Deleted", "This post has been removed.");
-              router.back();
-            } catch (e: any) { Alert.alert("Error", "Could not delete post."); }
+    if (currentUser?.uid !== post?.userId) { Alert.alert("Permission Denied"); return; }
+    Alert.alert( "Delete Post", "Are you sure?",
+      [{ text: "Cancel", style: "cancel" }, { text: "Delete", style: "destructive", onPress: async () => {
+            try { await deleteDoc(doc(db, "posts", pId)); router.back(); } catch (e: any) { Alert.alert("Error", "Could not delete post."); }
           },
         },
       ]
@@ -161,7 +114,6 @@ export default function PostDetailScreen() {
     else { router.push({ pathname: '/userProfile', params: { userId: userIdOfPostAuthor } }); }
   };
 
-  // Component to render each comment item
   const renderCommentItem = ({ item }: { item: Comment }) => (
     <View style={styles.commentContainer}>
       <TouchableOpacity onPress={() => handleUsernamePress(item.userId)}>
@@ -176,9 +128,7 @@ export default function PostDetailScreen() {
     </View>
   );
 
-  if (isLoading) {
-    return <LinearGradient colors={themeColors.backgroundGradient} style={styles.centeredFeedback}><ActivityIndicator size="large" color={themeColors.pink} /></LinearGradient>;
-  }
+  if (isLoading) { return <LinearGradient colors={themeColors.backgroundGradient} style={styles.centeredFeedback}><ActivityIndicator size="large" color={themeColors.pink} /></LinearGradient>; }
 
   return (
     <LinearGradient colors={themeColors.backgroundGradient} style={styles.gradientWrapper}>
@@ -200,6 +150,7 @@ export default function PostDetailScreen() {
           ) : (
             <>
               <FlatList
+                // THE FIX: Restored the correct structure. PostCard is the header, comments are the data.
                 ListHeaderComponent={
                   <PostCard
                     post={post}
@@ -215,7 +166,11 @@ export default function PostDetailScreen() {
                 data={comments}
                 renderItem={renderCommentItem}
                 keyExtractor={(item) => item.id}
-                ListFooterComponent={ <View style={{ height: 20 }} /> }
+                ListEmptyComponent={
+                  <View style={styles.centeredFeedbackSmall}>
+                    <Text style={styles.infoText}>Be the first to comment.</Text>
+                  </View>
+                }
                 contentContainerStyle={styles.scrollContainer}
               />
 
@@ -248,6 +203,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   scrollContainer: { paddingBottom: 10 },
   centeredFeedback: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  centeredFeedbackSmall: { padding: 20, alignItems: 'center' },
   errorText: { color: themeColors.errorRed, fontSize: 18, textAlign: 'center', marginBottom: 20 },
   infoText: { color: themeColors.textSecondary, fontSize: 15 },
   backButton: { marginTop: 20, paddingVertical: 10, paddingHorizontal: 25, backgroundColor: themeColors.pink, borderRadius: 8 },

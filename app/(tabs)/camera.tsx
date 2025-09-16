@@ -15,12 +15,17 @@ import { Audio } from "expo-av";
 import { httpsCallable } from "firebase/functions";
 import { collection, addDoc, serverTimestamp, doc, getDoc } from "firebase/firestore";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
-
-// Import your reusable header component
 import AppHeader from '../../components/AppHeader';
 
-// --- Interfaces ---
-interface RecommendedTrack { id: string; name: string; artists: string[]; previewUrl: string | null; spotifyUrl: string; albumImageUrl: string | null; }
+// --- INTERFACE UPDATED ---
+interface RecommendedTrack {
+  id: string;
+  name: string;
+  artists: string[];
+  previewUrl: string | null; // This is now officially part of the type
+  spotifyUrl: string;
+  albumImageUrl: string | null;
+}
 interface GenerateCaptionData { imageUrl: string; }
 interface GenerateCaptionResult { caption: string | null; }
 
@@ -53,6 +58,13 @@ export default function CameraScreen() {
   const [selectedSongForPreview, setSelectedSongForPreview] = useState<RecommendedTrack | null>(null);
   const [generatedCaptionSuggestions, setGeneratedCaptionSuggestions] = useState<string[] | null>(null);
   const [currentCaptionSuggestion, setCurrentCaptionSuggestion] = useState<string | null>(null);
+
+  // --- NEW: useEffect to unload sound when component unmounts ---
+  useEffect(() => {
+    return () => {
+      playbackInstance?.unloadAsync();
+    };
+  }, [playbackInstance]);
 
   const resetForNewImageSelection = () => {
     setSelectedImageUri(null); setSelectedImageWidth(null); setSelectedImageHeight(null);
@@ -92,204 +104,70 @@ export default function CameraScreen() {
   };
 
   const handleImageUpload = async (imageUri: string) => {
-    if (!imageUri) return;
-    const currentUser = auth.currentUser;
-    if (!currentUser) { Alert.alert("Not Authenticated", "Please log in."); return; }
-    setIsUploading(true); setCurrentStage("uploading"); setError(""); setStatusMessage("Starting upload...");
-    setUploadProgress(0); setUploadedImageUrl(null);
-    try {
-      const response = await fetch(imageUri); const blob = await response.blob();
-      const filename = `${uuidv4()}.${blob.type.split('/')[1] || 'jpg'}`;
-      const path = `user_uploads/${currentUser.uid}/${filename}`;
-      const storageRef = ref(storage, path); const task = uploadBytesResumable(storageRef, blob);
-      task.on('state_changed', (snap) => {
-        const prog = (snap.bytesTransferred / snap.totalBytes) * 100;
-        setUploadProgress(prog); setStatusMessage(`Uploading: ${Math.round(prog)}%`);
-      }, (err) => {
-        console.error("Upload Err:", err); setError(`Upload failed: ${err.message}`);
-        setIsUploading(false); setStatusMessage(""); setCurrentStage("initial");
-      }, async () => {
-        const url = await getDownloadURL(task.snapshot.ref);
-        setUploadedImageUrl(url); setStatusMessage("Image uploaded! Choose an action below.");
-        setIsUploading(false); setCurrentStage("imageUploaded"); setScreenTitle("Choose Recommendation");
-      });
-    } catch (e: any) {
-      console.error("Upload Prep Err:", e); setError(`Upload error: ${e.message}`);
-      setIsUploading(false); setStatusMessage(""); setCurrentStage("initial");
-    }
+    if (!imageUri) return; const currentUser = auth.currentUser; if (!currentUser) { Alert.alert("Not Authenticated", "Please log in."); return; } setIsUploading(true); setCurrentStage("uploading"); setError(""); setStatusMessage("Starting upload..."); setUploadProgress(0); setUploadedImageUrl(null); try { const response = await fetch(imageUri); const blob = await response.blob(); const filename = `${uuidv4()}.${blob.type.split('/')[1] || 'jpg'}`; const path = `user_uploads/${currentUser.uid}/${filename}`; const storageRef = ref(storage, path); const task = uploadBytesResumable(storageRef, blob); task.on('state_changed', (snap) => { const prog = (snap.bytesTransferred / snap.totalBytes) * 100; setUploadProgress(prog); setStatusMessage(`Uploading: ${Math.round(prog)}%`); }, (err) => { console.error("Upload Err:", err); setError(`Upload failed: ${err.message}`); setIsUploading(false); setStatusMessage(""); setCurrentStage("initial"); }, async () => { const url = await getDownloadURL(task.snapshot.ref); setUploadedImageUrl(url); setStatusMessage("Image uploaded! Choose an action below."); setIsUploading(false); setCurrentStage("imageUploaded"); setScreenTitle("Choose Recommendation"); }); } catch (e: any) { console.error("Upload Prep Err:", e); setError(`Upload error: ${e.message}`); setIsUploading(false); setStatusMessage(""); setCurrentStage("initial"); }
   };
 
   const navigateToPreferences = () => {
-    setError(""); setCurrentStage("selectingPreferences");
-    setScreenTitle("Preferences (Optional)"); setStatusMessage("Choose a language and/or mood, or just proceed.");
+    setError(""); setCurrentStage("selectingPreferences"); setScreenTitle("Preferences (Optional)"); setStatusMessage("Choose a language and/or mood, or just proceed.");
   };
 
   const fetchRecommendationsFromAPI = async () => {
-    if (!selectedImageUri) { setError("No image selected."); return; }
-    setIsProcessingSong(true); setError(""); setAllRecommendedTracks([]); setSelectedSongForPreview(null);
-    setCurrentSongIndex(0); setStatusMessage("Getting song recommendations...");
-    setCurrentStage("selectingSong"); setScreenTitle("Finding Recommendations...");
-    try {
-      const formData = new FormData();
-      const response = await fetch(selectedImageUri);
-      const blob = await response.blob();
-      const filename = selectedImageUri.split('/').pop() || 'image.jpg';
-      const blobWithType = new Blob([blob], { type: blob.type || 'image/jpeg' });
-      formData.append('file', blobWithType, filename);
-      if (selectedLanguage) formData.append('language', selectedLanguage);
-      if (selectedMood) formData.append('mood', selectedMood);
-      const apiEndpoint = 'https://n0rat1ka-moodmatch-songrecommendationapi.hf.space/recommend';
-      const apiResponse = await fetch(apiEndpoint, { method: 'POST', body: formData });
-      if (!apiResponse.ok) { throw new Error(`API Error ${apiResponse.status}: ${await apiResponse.text()}`); }
-      const result = await apiResponse.json();
+    if (!selectedImageUri) { setError("No image selected."); return; } setIsProcessingSong(true); setError(""); setAllRecommendedTracks([]); setSelectedSongForPreview(null); setCurrentSongIndex(0); setStatusMessage("Getting song recommendations..."); setCurrentStage("selectingSong"); setScreenTitle("Finding Recommendations..."); try { const formData = new FormData(); const response = await fetch(selectedImageUri); const blob = await response.blob(); const filename = selectedImageUri.split('/').pop() || 'image.jpg'; const blobWithType = new Blob([blob], { type: blob.type || 'image/jpeg' }); formData.append('file', blobWithType, filename); if (selectedLanguage) formData.append('language', selectedLanguage); if (selectedMood) formData.append('mood', selectedMood); const apiEndpoint = 'https://n0rat1ka-moodmatch-songrecommendationapi.hf.space/recommend'; const apiResponse = await fetch(apiEndpoint, { method: 'POST', body: formData }); if (!apiResponse.ok) { throw new Error(`API Error ${apiResponse.status}: ${await apiResponse.text()}`); } const result = await apiResponse.json();
       const formattedTracks: RecommendedTrack[] = result.tracks.map((track: any) => ({
         id: track.url, name: track.name, artists: [track.artists],
-        previewUrl: null, spotifyUrl: track.url, albumImageUrl: null,
+        previewUrl: track.preview_url || null, spotifyUrl: track.url, albumImageUrl: track.album_image_url || null,
       }));
-      if (formattedTracks.length > 0) {
-        setAllRecommendedTracks(formattedTracks); setStatusMessage("Success! Please choose your favorite song.");
-        setScreenTitle("Choose the best song!");
-      } else {
-        setAllRecommendedTracks([]); setStatusMessage("🤔 No songs found. Try different preferences?");
-        setScreenTitle("No Results");
-      }
-    } catch (e: any) {
-      console.error("API Fetch Err:", e); setError(`Recommendation failed: ${e.message}`);
-      setStatusMessage("Error. Please try again.");
-      setCurrentStage('selectingPreferences'); setScreenTitle("Preferences (Optional)");
-    } finally { setIsProcessingSong(false); }
+      if (formattedTracks.length > 0) { setAllRecommendedTracks(formattedTracks); setStatusMessage("Success! Please choose your favorite song."); setScreenTitle("Choose the best song!"); } else { setAllRecommendedTracks([]); setStatusMessage("🤔 No songs found. Try different preferences?"); setScreenTitle("No Results"); } } catch (e: any) { console.error("API Fetch Err:", e); setError(`Recommendation failed: ${e.message}`); setStatusMessage("Error. Please try again."); setCurrentStage('selectingPreferences'); setScreenTitle("Preferences (Optional)"); } finally { setIsProcessingSong(false); }
   };
 
-  const initiateGetCaption = () => {
-    if (!uploadedImageUrl) return;
-    setIsProcessingCaption(true); setError(""); setCurrentCaptionSuggestion(null); setGeneratedCaptionSuggestions(null);
-    setStatusMessage("Generating caption...");
-    setCurrentStage("selectingCaption"); setScreenTitle("Select a Caption");
-    callGenerateCaption();
-  };
-  const callGenerateCaption = async () => {
-    try {
-      const captionFn = httpsCallable<GenerateCaptionData, GenerateCaptionResult>(functions, 'generateCaption');
-      const result = (await captionFn({ imageUrl: uploadedImageUrl! })).data as GenerateCaptionResult;
-      if (result?.caption) {
-        setCurrentCaptionSuggestion(result.caption); setGeneratedCaptionSuggestions([result.caption]);
-        setStatusMessage("Caption generated. Confirm or retry.");
-      } else { throw new Error("Caption generation returned null."); }
-    } catch (e: any) {
-      console.error("Caption Gen Err:", e); setError(`Caption failed: ${e.message}`); setStatusMessage("Error. Retry?");
-    } finally { setIsProcessingCaption(false); }
-  };
-
-  const handleSelectSongForPreview = (track: RecommendedTrack) => setSelectedSongForPreview(track);
-  const handleNextSongs = () => {
-    setSelectedSongForPreview(null);
-    setCurrentSongIndex(prevIndex => {
-        const nextIndex = prevIndex + 3;
-        return nextIndex >= allRecommendedTracks.length ? 0 : nextIndex;
-    });
-  };
-  const handleConfirmSelectedSong = () => {
-    if (selectedSongForPreview) {
-      setChosenSong(selectedSongForPreview);
-      setCurrentStage(chosenCaption ? "bothConfirmed" : "songConfirmed");
-      setScreenTitle("Review & Post"); setStatusMessage("Ready to post!");
-    } else { Alert.alert("No song selected", "Please tap on a song to highlight it first."); }
-  };
-
-  const handleConfirmCaption = () => {
-    if (!currentCaptionSuggestion) { Alert.alert("No Caption", "No caption to confirm."); return; }
-    setChosenCaption(currentCaptionSuggestion);
-    setCurrentCaptionSuggestion(null); setGeneratedCaptionSuggestions(null);
-    setCurrentStage(chosenSong ? "bothConfirmed" : "captionConfirmed");
-    setScreenTitle("Review & Post"); setStatusMessage(`Ready to post!`);
-  };
-
-  const goBackToSongSelection = () => {
-    setChosenSong(null); setCurrentStage("selectingSong");
-    setScreenTitle("Choose the best song!");
-  };
-  const goBackToCaptionSelection = () => {
-    setChosenCaption(null); initiateGetCaption();
-  };
-
-  const handlePost = async () => {
-    if (!uploadedImageUrl || !auth.currentUser) return;
-    setStatusMessage("Posting...");
-    try {
-      const userDocRef = doc(db, "users", auth.currentUser.uid);
-      const userDocSnap = await getDoc(userDocRef);
-      let username = auth.currentUser.email?.split('@')[0] || `User${auth.currentUser.uid.substring(0,5)}`;
-      let userProfileImageUrl: string | null = null;
-      if (userDocSnap.exists()) {
-        const userData = userDocSnap.data();
-        username = userData.username || username; userProfileImageUrl = userData.photoURL || null;
-      }
-      const postData = {
-        userId: auth.currentUser.uid, username, userProfileImageUrl,
-        imageUrl: uploadedImageUrl, caption: chosenCaption || null,
-        song: chosenSong ? { id: chosenSong.id, name: chosenSong.name, artists: chosenSong.artists, albumImageUrl: chosenSong.albumImageUrl, previewUrl: chosenSong.previewUrl, spotifyUrl: chosenSong.spotifyUrl } : null,
-        createdAt: serverTimestamp(), likesCount: 0, likedBy: [], commentsCount: 0,
-      };
-      await addDoc(collection(db, "posts"), postData);
-      Alert.alert("Post Created!", "Your content is live in the community feed.");
-      resetForNewImageSelection();
-    } catch (e: any) {
-      console.error("Error posting content:", e); setError(`Failed to post: ${e.message}`);
-      setStatusMessage("");
+  const playPreview = async (track: RecommendedTrack) => {
+    if (!track.previewUrl) { Alert.alert("No Preview", "No audio preview available for this track."); return; }
+    const isCurrentlyPlayingThisTrack = currentlyPlayingId === track.id;
+    if (playbackInstance && isCurrentlyPlayingThisTrack) {
+      await playbackInstance.pauseAsync(); setIsPlayingAudio(false); setCurrentlyPlayingId(null); return;
     }
+    if (playbackInstance) { await playbackInstance.stopAsync(); await playbackInstance.unloadAsync(); }
+    try {
+      await Audio.setAudioModeAsync({ playsInSilentModeIOS: true });
+      const { sound } = await Audio.Sound.createAsync({ uri: track.previewUrl }, { shouldPlay: true });
+      setPlaybackInstance(sound); setCurrentlyPlayingId(track.id); setIsPlayingAudio(true);
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded) { setIsPlayingAudio(status.isPlaying);
+          if (status.didJustFinish) { sound.unloadAsync(); setPlaybackInstance(null); setCurrentlyPlayingId(null); }
+        }
+      });
+    } catch (e: any) { console.error("Error playing preview:", e); Alert.alert("Playback Error", "Could not play audio preview."); setPlaybackInstance(null); setCurrentlyPlayingId(null); }
   };
+
+  const initiateGetCaption = () => { if (!uploadedImageUrl) return; setIsProcessingCaption(true); setError(""); setCurrentCaptionSuggestion(null); setGeneratedCaptionSuggestions(null); setStatusMessage("Generating caption..."); setCurrentStage("selectingCaption"); setScreenTitle("Select a Caption"); callGenerateCaption(); };
+  const callGenerateCaption = async () => { try { const captionFn = httpsCallable<GenerateCaptionData, GenerateCaptionResult>(functions, 'generateCaption'); const result = (await captionFn({ imageUrl: uploadedImageUrl! })).data as GenerateCaptionResult; if (result?.caption) { setCurrentCaptionSuggestion(result.caption); setGeneratedCaptionSuggestions([result.caption]); setStatusMessage("Caption generated. Confirm or retry."); } else { throw new Error("Caption generation returned null."); } } catch (e: any) { console.error("Caption Gen Err:", e); setError(`Caption failed: ${e.message}`); setStatusMessage("Error. Retry?"); } finally { setIsProcessingCaption(false); } };
+  const handleSelectSongForPreview = (track: RecommendedTrack) => setSelectedSongForPreview(track);
+  const handleNextSongs = () => { setSelectedSongForPreview(null); setCurrentSongIndex(prevIndex => (prevIndex + 3 >= allRecommendedTracks.length ? 0 : prevIndex + 3)); };
+  const handleConfirmSelectedSong = () => { if (selectedSongForPreview) { setChosenSong(selectedSongForPreview); setCurrentStage(chosenCaption ? "bothConfirmed" : "songConfirmed"); setScreenTitle("Review & Post"); setStatusMessage("Ready to post!"); } else { Alert.alert("No song selected", "Please tap on a song to highlight it first."); } };
+  const handleConfirmCaption = () => { if (!currentCaptionSuggestion) { Alert.alert("No Caption", "No caption to confirm."); return; } setChosenCaption(currentCaptionSuggestion); setCurrentCaptionSuggestion(null); setGeneratedCaptionSuggestions(null); setCurrentStage(chosenSong ? "bothConfirmed" : "captionConfirmed"); setScreenTitle("Review & Post"); setStatusMessage(`Ready to post!`); };
+  const goBackToSongSelection = () => { setChosenSong(null); setCurrentStage("selectingSong"); setScreenTitle("Choose the best song!"); };
+  const goBackToCaptionSelection = () => { setChosenCaption(null); initiateGetCaption(); };
+  const handlePost = async () => { if (!uploadedImageUrl || !auth.currentUser) return; setStatusMessage("Posting..."); try { const userDocRef = doc(db, "users", auth.currentUser.uid); const userDocSnap = await getDoc(userDocRef); let username = auth.currentUser.email?.split('@')[0] || `User${auth.currentUser.uid.substring(0,5)}`; let userProfileImageUrl: string | null = null; if (userDocSnap.exists()) { const userData = userDocSnap.data(); username = userData.username || username; userProfileImageUrl = userData.photoURL || null; } const postData = { userId: auth.currentUser.uid, username, userProfileImageUrl, imageUrl: uploadedImageUrl, caption: chosenCaption || null, song: chosenSong ? { id: chosenSong.id, name: chosenSong.name, artists: chosenSong.artists, albumImageUrl: chosenSong.albumImageUrl, previewUrl: chosenSong.previewUrl, spotifyUrl: chosenSong.spotifyUrl } : null, createdAt: serverTimestamp(), likesCount: 0, likedBy: [], commentsCount: 0, }; await addDoc(collection(db, "posts"), postData); Alert.alert("Post Created!", "Your content is live in the community feed."); resetForNewImageSelection(); } catch (e: any) { console.error("Error posting content:", e); setError(`Failed to post: ${e.message}`); setStatusMessage(""); } };
 
   const windowWidth = Dimensions.get('window').width; const windowHeight = Dimensions.get('window').height;
   const maxDisplayWidth = windowWidth * 0.9;
   let displayWidth: number | null = null; let displayHeight: number | null = null;
-  if (selectedImageWidth && selectedImageHeight) {
-    const aspectRatio = selectedImageWidth / selectedImageHeight;
-    displayWidth = maxDisplayWidth;
-    displayHeight = displayWidth / aspectRatio;
-    if (displayHeight > (windowHeight * 0.35)) {
-      displayHeight = windowHeight * 0.35; displayWidth = displayHeight * aspectRatio;
-    }
-  }
+  if (selectedImageWidth && selectedImageHeight) { const aspectRatio = selectedImageWidth / selectedImageHeight; displayWidth = maxDisplayWidth; displayHeight = displayWidth / aspectRatio; if (displayHeight > (windowHeight * 0.35)) { displayHeight = windowHeight * 0.35; displayWidth = displayHeight * aspectRatio; } }
 
   return (
     <LinearGradient colors={themeColors.backgroundGradient} style={styles.gradientWrapper}>
       <SafeAreaView style={styles.safeArea}>
-        {/* The new header is placed here, outside the ScrollView */}
         <AppHeader>
           <Text style={styles.headerTitle}>{screenTitle}</Text>
         </AppHeader>
-
         <ScrollView contentContainerStyle={styles.scrollContentContainer}>
-          {/* The old <Text> title is removed from here */}
-
-          {/* All your original conditional rendering logic is preserved below */}
-          {currentStage === "initial" && !isUploading && (
-            <><View style={styles.buttonRow}><TouchableOpacity style={[styles.button, styles.pickButton]} onPress={() => pickImageFromDevice(false)}><Text style={styles.buttonText}>Gallery</Text></TouchableOpacity><TouchableOpacity style={[styles.button, styles.cameraButton]} onPress={() => pickImageFromDevice(true)}><Text style={styles.buttonText}>Camera</Text></TouchableOpacity></View><View style={[styles.imageContainer, styles.imagePlaceholder, { width: maxDisplayWidth, height: 200 }]}><Text style={styles.placeholderText}>Select or take an image</Text></View></>
-          )}
-          {selectedImageUri && displayWidth && displayHeight && (
-            <View style={[styles.imageContainer, { width: displayWidth, height: displayHeight }]}><Image source={{ uri: selectedImageUri }} style={styles.selectedImage} resizeMode="contain"/>{isUploading && <View style={styles.imageLoadingOverlay}><ActivityIndicator size="large" color={themeColors.textLight} /><Text style={styles.progressTextOverlay}>{statusMessage}</Text></View>}</View>
-          )}
+          {currentStage === "initial" && !isUploading && ( <><View style={styles.buttonRow}><TouchableOpacity style={[styles.button, styles.pickButton]} onPress={() => pickImageFromDevice(false)}><Text style={styles.buttonText}>Gallery</Text></TouchableOpacity><TouchableOpacity style={[styles.button, styles.cameraButton]} onPress={() => pickImageFromDevice(true)}><Text style={styles.buttonText}>Camera</Text></TouchableOpacity></View><View style={[styles.imageContainer, styles.imagePlaceholder, { width: maxDisplayWidth, height: 200 }]}><Text style={styles.placeholderText}>Select or take an image</Text></View></> )}
+          {selectedImageUri && displayWidth && displayHeight && ( <View style={[styles.imageContainer, { width: displayWidth, height: displayHeight }]}><Image source={{ uri: selectedImageUri }} style={styles.selectedImage} resizeMode="contain"/>{isUploading && <View style={styles.imageLoadingOverlay}><ActivityIndicator size="large" color={themeColors.textLight} /><Text style={styles.progressTextOverlay}>{statusMessage}</Text></View>}</View> )}
           {error && <Text style={[styles.statusMessageText, styles.errorTextDisplay]}>{error}</Text>}
           {statusMessage && !error && !isUploading && !isProcessingSong && !isProcessingCaption && <Text style={styles.statusMessageText}>{statusMessage}</Text>}
-          {(currentStage === 'songConfirmed' || currentStage === 'captionConfirmed' || currentStage === 'bothConfirmed') && (
-            <View style={styles.chosenItemsContainer}>
-              {chosenSong && <View style={styles.chosenItem}><Ionicons name="musical-notes" size={20} color={themeColors.pink} style={{marginRight: 8}}/><Text style={styles.chosenItemText} numberOfLines={1}>Song: {chosenSong.name}</Text></View>}
-              {chosenCaption && <View style={styles.chosenItem}><Ionicons name="chatbubbles" size={20} color={themeColors.blue} style={{marginRight: 8}}/><Text style={styles.chosenItemText} numberOfLines={2}>Caption: {chosenCaption}</Text></View>}
-            </View>
-          )}
-          {currentStage === "imageUploaded" && (
-            <View style={styles.actionChoiceContainer}><TouchableOpacity style={[styles.button, styles.songButton]} onPress={navigateToPreferences}><Ionicons name="musical-notes-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}} /><Text style={styles.buttonText}>Get Songs</Text></TouchableOpacity><TouchableOpacity style={[styles.button, styles.captionButton]} onPress={initiateGetCaption}><Ionicons name="chatbubble-ellipses-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}} /><Text style={styles.buttonText}>Get Caption</Text></TouchableOpacity></View>
-          )}
-          {currentStage === "selectingPreferences" && (
-            <View style={styles.resultsSection}>
-              <View style={styles.preferenceGrid}>{['english','malay','chinese','tamil','korean','happy','sad','chill','romantic','energetic'].map(item => {
-                  const isLanguage = ['english','malay','chinese','tamil','korean'].includes(item);
-                  const isSelected = isLanguage ? selectedLanguage === item : selectedMood === item;
-                  return (<TouchableOpacity key={item} style={[styles.preferenceButton, isSelected && styles.preferenceButtonSelected]} onPress={() => isLanguage ? setSelectedLanguage(p => p === item ? null : item) : setSelectedMood(p => p === item ? null : item)}><Text style={styles.preferenceButtonText}>{item.charAt(0).toUpperCase() + item.slice(1)}</Text></TouchableOpacity>);
-                })}
-              </View><TouchableOpacity style={[styles.button, styles.proceedButton]} onPress={fetchRecommendationsFromAPI} disabled={isProcessingSong}><Text style={styles.buttonText}>Proceed</Text></TouchableOpacity>
-            </View>
-          )}
+          {(currentStage === 'songConfirmed' || currentStage === 'captionConfirmed' || currentStage === 'bothConfirmed') && ( <View style={styles.chosenItemsContainer}>{chosenSong && <View style={styles.chosenItem}><Ionicons name="musical-notes" size={20} color={themeColors.pink} style={{marginRight: 8}}/><Text style={styles.chosenItemText} numberOfLines={1}>Song: {chosenSong.name}</Text></View>}{chosenCaption && <View style={styles.chosenItem}><Ionicons name="chatbubbles" size={20} color={themeColors.blue} style={{marginRight: 8}}/><Text style={styles.chosenItemText} numberOfLines={2}>Caption: {chosenCaption}</Text></View>}</View> )}
+          {currentStage === "imageUploaded" && ( <View style={styles.actionChoiceContainer}><TouchableOpacity style={[styles.button, styles.songButton]} onPress={navigateToPreferences}><Ionicons name="musical-notes-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}} /><Text style={styles.buttonText}>Get Songs</Text></TouchableOpacity><TouchableOpacity style={[styles.button, styles.captionButton]} onPress={initiateGetCaption}><Ionicons name="chatbubble-ellipses-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}} /><Text style={styles.buttonText}>Get Caption</Text></TouchableOpacity></View> )}
+          {currentStage === "selectingPreferences" && ( <View style={styles.resultsSection}><View style={styles.preferenceGrid}>{['english','malay','chinese','tamil','korean','happy','sad','chill','romantic','energetic'].map(item => { const isLanguage = ['english','malay','chinese','tamil','korean'].includes(item); const isSelected = isLanguage ? selectedLanguage === item : selectedMood === item; return (<TouchableOpacity key={item} style={[styles.preferenceButton, isSelected && styles.preferenceButtonSelected]} onPress={() => isLanguage ? setSelectedLanguage(p => p === item ? null : item) : setSelectedMood(p => p === item ? null : item)}><Text style={styles.preferenceButtonText}>{item.charAt(0).toUpperCase() + item.slice(1)}</Text></TouchableOpacity>); })}</View><TouchableOpacity style={[styles.button, styles.proceedButton]} onPress={fetchRecommendationsFromAPI} disabled={isProcessingSong}><Text style={styles.buttonText}>Proceed</Text></TouchableOpacity></View> )}
           {currentStage === "selectingSong" && (
             <View style={styles.resultsSection}>
               {isProcessingSong && <View style={styles.loadingFullWidth}><ActivityIndicator size="large" color={themeColors.pink} /><Text style={styles.progressText}>{statusMessage}</Text></View>}
@@ -299,6 +177,11 @@ export default function CameraScreen() {
                       <TouchableOpacity key={track.id} style={[styles.songCard, selectedSongForPreview?.id === track.id && styles.songCardSelected]} onPress={() => handleSelectSongForPreview(track)}>
                         <View style={styles.songCardIcon}><Ionicons name="musical-notes" size={24} color={themeColors.textLight} /></View>
                         <View style={styles.trackInfo}><Text style={styles.trackName} numberOfLines={1}>{track.name}</Text><Text style={styles.trackArtist} numberOfLines={1}>{track.artists.join(", ")}</Text></View>
+                        {track.previewUrl ? (
+                          <TouchableOpacity style={styles.playPauseButton} onPress={(e) => { e.stopPropagation(); playPreview(track); }}>
+                            <Ionicons name={(isPlayingAudio && currentlyPlayingId === track.id) ? "pause-circle" : "play-circle"} size={34} color={themeColors.pink} />
+                          </TouchableOpacity>
+                        ) : ( <View style={styles.playPauseButtonPlaceholder} /> )}
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -311,36 +194,10 @@ export default function CameraScreen() {
               {!isProcessingSong && allRecommendedTracks.length === 0 && <TouchableOpacity style={[styles.buttonSmall, styles.retryButton]} onPress={navigateToPreferences}><Ionicons name="arrow-back" size={18} color={themeColors.textLight} /><Text style={styles.buttonSmallText}>Try Again</Text></TouchableOpacity>}
             </View>
           )}
-          {currentStage === "selectingCaption" && (
-            <View style={styles.resultsSection}>{isProcessingCaption && <View style={styles.loadingFullWidth}><ActivityIndicator size="large" color={themeColors.blue} /><Text style={styles.progressText}>{statusMessage}</Text></View>}
-              {!isProcessingCaption && currentCaptionSuggestion && (
-                <><View style={styles.captionTextDisplay}><Text style={styles.captionText}>{currentCaptionSuggestion}</Text></View>
-                <View style={styles.captionActions}>
-                  <TouchableOpacity style={[styles.buttonSmall, styles.retryButton]} onPress={initiateGetCaption}><Ionicons name="refresh" size={18} color={themeColors.textLight} /><Text style={styles.buttonSmallText}>Retry</Text></TouchableOpacity>
-                  <TouchableOpacity style={[styles.buttonSmall, styles.confirmButton]} onPress={handleConfirmCaption}><Ionicons name="checkmark" size={18} color={themeColors.textLight} /><Text style={styles.buttonSmallText}>Confirm</Text></TouchableOpacity>
-                </View></>
-              )}
-            </View>
-          )}
-          {(currentStage === 'songConfirmed' || currentStage === 'captionConfirmed' || currentStage === 'bothConfirmed') && (
-            <View style={styles.finalActionsContainer}>
-              {chosenSong ? <TouchableOpacity style={[styles.button, styles.backButton]} onPress={goBackToSongSelection}><Ionicons name="arrow-back" size={18} color={themeColors.textLight} style={{marginRight: 6}} /><Text style={styles.buttonText}>Change Song</Text></TouchableOpacity>
-              : <TouchableOpacity style={[styles.button, styles.addSongButton]} onPress={navigateToPreferences}><Ionicons name="musical-notes-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}} /><Text style={styles.buttonText}>Add Song</Text></TouchableOpacity>}
-              {chosenCaption ? <TouchableOpacity style={[styles.button, styles.backButton]} onPress={goBackToCaptionSelection}><Ionicons name="arrow-back" size={18} color={themeColors.textLight} style={{marginRight: 6}} /><Text style={styles.buttonText}>Change Caption</Text></TouchableOpacity>
-              : <TouchableOpacity style={[styles.button, styles.addCaptionButton]} onPress={initiateGetCaption}><Ionicons name="chatbubble-ellipses-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}} /><Text style={styles.buttonText}>Add Caption</Text></TouchableOpacity>}
-              <TouchableOpacity style={[styles.button, styles.postButton]} onPress={handlePost}><Ionicons name="send-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}}/><Text style={styles.buttonText}>Post</Text></TouchableOpacity>
-            </View>
-          )}
+          {currentStage === "selectingCaption" && ( <View style={styles.resultsSection}>{isProcessingCaption && <View style={styles.loadingFullWidth}><ActivityIndicator size="large" color={themeColors.blue} /><Text style={styles.progressText}>{statusMessage}</Text></View>}{!isProcessingCaption && currentCaptionSuggestion && ( <><View style={styles.captionTextDisplay}><Text style={styles.captionText}>{currentCaptionSuggestion}</Text></View><View style={styles.captionActions}><TouchableOpacity style={[styles.buttonSmall, styles.retryButton]} onPress={initiateGetCaption}><Ionicons name="refresh" size={18} color={themeColors.textLight} /><Text style={styles.buttonSmallText}>Retry</Text></TouchableOpacity><TouchableOpacity style={[styles.buttonSmall, styles.confirmButton]} onPress={handleConfirmCaption}><Ionicons name="checkmark" size={18} color={themeColors.textLight} /><Text style={styles.buttonSmallText}>Confirm</Text></TouchableOpacity></View></> )}</View> )}
+          {(currentStage === 'songConfirmed' || currentStage === 'captionConfirmed' || currentStage === 'bothConfirmed') && ( <View style={styles.finalActionsContainer}>{chosenSong ? <TouchableOpacity style={[styles.button, styles.backButton]} onPress={goBackToSongSelection}><Ionicons name="arrow-back" size={18} color={themeColors.textLight} style={{marginRight: 6}} /><Text style={styles.buttonText}>Change Song</Text></TouchableOpacity> : <TouchableOpacity style={[styles.button, styles.addSongButton]} onPress={navigateToPreferences}><Ionicons name="musical-notes-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}} /><Text style={styles.buttonText}>Add Song</Text></TouchableOpacity>}{chosenCaption ? <TouchableOpacity style={[styles.button, styles.backButton]} onPress={goBackToCaptionSelection}><Ionicons name="arrow-back" size={18} color={themeColors.textLight} style={{marginRight: 6}} /><Text style={styles.buttonText}>Change Caption</Text></TouchableOpacity> : <TouchableOpacity style={[styles.button, styles.addCaptionButton]} onPress={initiateGetCaption}><Ionicons name="chatbubble-ellipses-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}} /><Text style={styles.buttonText}>Add Caption</Text></TouchableOpacity>}<TouchableOpacity style={[styles.button, styles.postButton]} onPress={handlePost}><Ionicons name="send-outline" size={20} color={themeColors.textLight} style={{marginRight: 8}}/><Text style={styles.buttonText}>Post</Text></TouchableOpacity></View> )}
         </ScrollView>
-
-        {currentStage !== "initial" && !isUploading && (
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.discardButton} onPress={resetForNewImageSelection}>
-              <Ionicons name="trash-outline" size={16} color={themeColors.textLight} />
-              <Text style={styles.discardButtonText}>Discard</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        {/* {currentStage !== "initial" && !isUploading && ( <View style={styles.footer}><TouchableOpacity style={styles.discardButton} onPress={resetForNewImageSelection}><Ionicons name="trash-outline" size={16} color={themeColors.textLight} /><Text style={styles.discardButtonText}>Discard</Text></TouchableOpacity></View> )} */}
       </SafeAreaView>
     </LinearGradient>
   );
@@ -349,11 +206,8 @@ export default function CameraScreen() {
 const styles = StyleSheet.create({
     gradientWrapper: { flex: 1 },
     safeArea: { flex: 1 },
-    // Removed top padding to let SafeAreaView and Header handle it. Added space below header.
     scrollContentContainer: { alignItems: 'center', paddingTop: 20, paddingBottom: 150 },
-    // New style for the header title
     headerTitle: { color: themeColors.textLight, fontSize: 22, fontWeight: 'bold' },
-    // The old `title` style is no longer needed
     buttonRow: { flexDirection: 'row', justifyContent: 'space-around', width: '90%', marginBottom: 20 },
     button: { paddingVertical: 12, paddingHorizontal: 20, borderRadius: 25, minHeight: 50, alignItems: 'center', justifyContent: 'center', flex: 1, marginHorizontal: 8, shadowColor: "#000", shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 3.84, elevation: 5, flexDirection: 'row' },
     pickButton: { backgroundColor: themeColors.pink },
@@ -405,4 +259,7 @@ const styles = StyleSheet.create({
     footer: { position: 'absolute', bottom: 20, left: 20 },
     discardButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: themeColors.errorRed, paddingVertical: 10, paddingHorizontal: 15, borderRadius: 20, elevation: 5 },
     discardButtonText: { color: themeColors.textLight, fontSize: 14, fontWeight: 'bold', marginLeft: 6 },
+    // --- NEW STYLES for the play button ---
+    playPauseButton: { padding: 5, marginLeft: 'auto' },
+    playPauseButtonPlaceholder: { width: 44, height: 44, marginLeft: 'auto' }
 });

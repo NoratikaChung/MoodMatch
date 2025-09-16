@@ -61,7 +61,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="camera"
         options={{
-          title: 'Camera',
+          title: '',
           tabBarIcon: ({ color, size, focused }) => (<Ionicons name={focused ? "camera" : "camera-outline"} size={size} color={color} />),
           tabBarButton: (props) => <CustomFlexTabButton {...props} />,
         }}
@@ -70,7 +70,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="community"
         options={{
-          title: 'Community',
+          title: '',
           tabBarIcon: ({ color, size, focused }) => (<Ionicons name={focused ? "people" : "people-outline"} size={size} color={color} />),
           tabBarButton: (props) => <CustomFlexTabButton {...props} />,
         }}
@@ -79,7 +79,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="chat"
         options={{
-          title: 'Chat',
+          title: '',
           tabBarIcon: ({ color, size, focused }) => (<Ionicons name={focused ? "chatbubbles" : "chatbubbles-outline"} size={size} color={color} />),
           tabBarButton: (props) => <CustomFlexTabButton {...props} />,
         }}
@@ -88,7 +88,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
+          title: '',
           tabBarIcon: ({ color, size, focused }) => (<Ionicons name={focused ? "person-circle" : "person-circle-outline"} size={size} color={color} />),
           tabBarButton: (props) => <CustomFlexTabButton {...props} />,
         }}
