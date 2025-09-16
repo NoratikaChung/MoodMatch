@@ -1,52 +1,32 @@
-# Welcome to your Expo app 👋
+# MoodMatch 🎶📸
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+MoodMatch is an AI-powered mobile application that recommends songs and captions based on images uploaded by users. It enhances creativity by combining image analysis with music and text generation, while also providing a community space for users to share, comment, and interact.
 
-## Get started
+---
 
-1. Install dependencies
+## Features
 
-   ```bash
-   npm install
-   ```
+- **Image Analysis**: Upload or capture an image to analyze its content and mood.  
+- **Song Recommendation**: Get relevant song suggestions via the Spotify Web API.  
+- **Caption Recommendation**: Generate creative captions based on the uploaded image.  
+- **User Feedback**: Like or dislike songs/captions to improve personalized recommendations.  
+- **Community Interaction**: Post images, share ideas, comment, and chat with other users.  
+- **Secure Authentication**: Firebase-based user registration, login, and profile management.  
 
-2. Start the app
+---
 
-   ```bash
-    npx expo start
-   ```
+## Architecture & Tech Stack
 
-In the output, you'll find options to open the app in a
+**Architecture Overview**  
+1. **Frontend (Mobile App)**: User interface for uploading images, viewing recommendations, and interacting with the community.  
+2. **Backend (AI & API)**: Image analysis using CLIP/BLIP models, connected to Spotify Web API for music recommendations.  
+3. **Database & Authentication**: Firebase manages user accounts, data storage, and community interactions.  
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+**Tech Stack**  
+- **Frontend**: React Native (Expo)  
+- **Backend**: FastAPI (deployed on Hugging Face Spaces)  
+- **AI Models**: CLIP (genre prediction), BLIP (image captioning)  
+- **Music API**: Spotify Web API  
+- **Database & Auth**: Firebase (Firestore, Authentication, Storage)  
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
-```
-
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
-
-## Learn more
-
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
-
-thanks!
+---
